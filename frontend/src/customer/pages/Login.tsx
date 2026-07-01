@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { ChefHat, ArrowRight, Lock, Mail, User } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { API_BASE_URL } from "../../shared/api";
 
 export const Login: React.FC = () => {
   const [isLogin, setIsLogin] = useState(true);
@@ -23,8 +24,8 @@ export const Login: React.FC = () => {
     setErrorMsg("");
 
     try {
-      const endpoint = isLogin ? "/api/auth/login" : "/api/auth/register";
-      const url = `http://localhost:8000${endpoint}`;
+      const endpoint = isLogin ? "/auth/login" : "/auth/register";
+      const url = `${API_BASE_URL}${endpoint}`;
 
       const payload = isLogin
         ? { email, password }
@@ -53,7 +54,7 @@ export const Login: React.FC = () => {
         }
 
         if (data.user?.role === "Chef") {
-          window.location.href = "http://localhost:3000";
+          window.location.href = "/chef";
         } else {
           navigate("/");
         }
