@@ -1,0 +1,53 @@
+version: "3.9"
+
+services:
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: kitchen-foods-db
+    environment:
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-zoom119}
+      POSTGRES_DB: ${DB_NAME:-kitchen-foods}
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    volumes:
+      - ./backend/database:/docker-entrypoint-initdb.d
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-kitchen-foods}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: kitchen-foods-backend
+    ports:
+      - "8000:8000"
+    environment:
+      PORT: 8000
+      DB_USER: ${DB_USER:-postgres}
+      DB_HOST: postgres
+      DB_NAME: ${DB_NAME:-kitchen-foods}
+      DB_PORT: 5432
+      DB_PASSWORD: ${DB_PASSWORD:-zoom119}
+      JWT_SECRET: ${JWT_SECRET:-kitchenfoodssecretfor2yp}
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: kitchen-foods-frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+
+volumes:
+  pgdata:
