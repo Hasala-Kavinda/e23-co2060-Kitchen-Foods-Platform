@@ -5,6 +5,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import swaggerUi from "swagger-ui-express";
 import { errorHandler } from "./middlewares/errorHandler.js";
+import { initDb } from "./config/initDb.js";
 import userRoutes from "./routes/user.routes.js";
 import authRoutes from "./routes/auth.routes.js";
 import adminRoutes from "./routes/admin.route.js";
@@ -51,6 +52,7 @@ app.use(
 app.use(errorHandler);
 
 const startServer = async () => {
+  await initDb();
   const PORT = process.env.PORT || 8000;
   app.listen(PORT, () => {
     console.log(`Server is running on http://localhost:${PORT}`);
