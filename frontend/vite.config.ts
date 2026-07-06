@@ -15,5 +15,11 @@ export default defineConfig(({ mode }) => {
         '@': path.resolve(__dirname, './src'),
       },
     },
+    server: {
+      proxy: {
+        '/api': 'http://localhost:8000',
+        '/api-docs': 'http://localhost:8000',
+      },
+    },
   };
 });
