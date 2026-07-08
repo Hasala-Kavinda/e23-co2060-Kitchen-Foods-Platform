@@ -8,6 +8,7 @@ export interface Order {
   status: OrderStatus;
   createdAt: string;
   deliveryTime: string;
+  description?: string;
 }
 
 export interface ChefStats {

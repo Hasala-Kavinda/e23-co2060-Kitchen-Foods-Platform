@@ -12,8 +12,8 @@ const VALID_ORDER_STATUSES = new Set(["Pending", "Quoted", "Paid", "Completed"])
 
 export const getStatsService = async () => {
   const [userCount, chefCount, orderCount, foodCount] = await Promise.all([
-    pool.query("SELECT COUNT(*)::int AS count FROM users"),
-    pool.query("SELECT COUNT(*)::int AS count FROM users WHERE role = 'Chef'"),
+    pool.query("SELECT (SELECT COUNT(*)::int FROM users) + (SELECT COUNT(*)::int FROM chefs) + (SELECT COUNT(*)::int FROM admin) AS count"),
+    pool.query("SELECT COUNT(*)::int AS count FROM chefs"),
     pool.query("SELECT COUNT(*)::int AS count FROM orders"),
     pool.query("SELECT COUNT(*)::int AS count FROM food_items"),
   ]);

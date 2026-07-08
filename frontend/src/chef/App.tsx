@@ -32,7 +32,20 @@ function cn(...inputs: ClassValue[]) {
 export default function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(true);
   const [orders, setOrders] = useState<Order[]>(mockOrders);
-  const [profile, setProfile] = useState(mockChefProfile);
+  const [profile, setProfile] = useState(() => {
+    const userStr = localStorage.getItem("user");
+    if (userStr) {
+      const userObj = JSON.parse(userStr);
+      if (userObj.role === "Chef") {
+        return {
+          ...mockChefProfile,
+          id: userObj.uid,
+          name: userObj.full_name,
+        };
+      }
+    }
+    return mockChefProfile;
+  });
   const [showToast, setShowToast] = useState(false);
   const [newOrderId, setNewOrderId] = useState('');
   const [activeTab, setActiveTab] = useState<'active' | 'completed'>('active');
@@ -52,7 +65,6 @@ export default function App() {
         if (!response.ok) throw new Error("Failed to fetch orders");
         const data = await response.json();
         
-        // Transform backend orders to match chef dashboard Order type
         const transformedOrders: Order[] = data.map((o: any) => ({
           id: o.id,
           customerName: o.customerName || "Customer",
@@ -60,7 +72,8 @@ export default function App() {
           total: Number(o.totalPrice),
           status: o.status.toLowerCase(),
           createdAt: o.createdAt,
-          deliveryTime: o.deliveryTime || "ASAP"
+          deliveryTime: o.deliveryTime || "ASAP",
+          description: o.mealDescription
         }));
 
         setOrders(transformedOrders);

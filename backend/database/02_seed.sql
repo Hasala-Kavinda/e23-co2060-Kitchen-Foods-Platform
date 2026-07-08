@@ -1,41 +1,26 @@
--- USERS
-INSERT INTO users (uid, full_name, email, password_hash, role)
+-- Seed data
+
+-- USERS (Customers)
+INSERT INTO users (uid, full_name, email, password_hash)
 VALUES
-('u1','Alice Customer','alice@test.com','hashed_pw1','Customer'),
-('u2','Bob Customer','bob@test.com','hashed_pw2','Customer'),
-('u3','Chef Nimal','nimal@test.com','hashed_pw3','Chef'),
-('u4','Chef Kamala','kamala@test.com','hashed_pw4','Chef')
+('u1','Alice Customer','alice@test.com','hashed_pw1'),
+('u2','Bob Customer','bob@test.com','hashed_pw2')
 ON CONFLICT (uid) DO NOTHING;
 
-
-
--- ORDERS
-INSERT INTO orders (id, customer_id, meal_description, status)
+-- CHEFS
+INSERT INTO chefs (uid, full_name, email, password_hash)
 VALUES
-('o1','u1','Vegetarian lunch for 5 people','Pending'),
-('o2','u2','Birthday dinner for 8 guests','Quoted')
-ON CONFLICT (id) DO NOTHING;
+('u3','Chef Nimal','nimal@test.com','hashed_pw3'),
+('u4','Chef Kamala','kamala@test.com','hashed_pw4')
+ON CONFLICT (uid) DO NOTHING;
 
-
-
--- QUOTES
-INSERT INTO quotes (id, order_id, chef_id, price, note, is_accepted)
+-- ADMIN
+INSERT INTO admin (uid, full_name, email, password_hash)
 VALUES
-('q1','o1','u3',45.00,'Healthy vegetarian buffet',FALSE),
-('q2','o1','u4',40.00,'Rice and curry vegetarian set',TRUE),
-('q3','o2','u3',120.00,'Full birthday dinner menu',FALSE)
-ON CONFLICT (id) DO NOTHING;
+('u5','Admin User','admin@test.com','$2b$10$wJtK16347R4tO.Hq2M1KyeI.Zexz9TCO4w6qgM0q9T5jK1zZl2e.S')
+ON CONFLICT (uid) DO NOTHING;
 
-
-
--- TRANSACTIONS
-INSERT INTO transactions (id, order_id, gateway_ref_id, amount, status)
-VALUES
-('t1','o1','PAY123456',40.00,'Escrow')
-ON CONFLICT (id) DO NOTHING;
-
-
--- FOOD ITEMS
+-- FOOD CATEGORIES
 INSERT INTO food_categories (id, name, description)
 VALUES
 ('c1','Rice & Curry','Traditional Sri Lankan rice plates with curries.'),
@@ -46,6 +31,7 @@ VALUES
 ('c6','Other','Specials that do not fit a main category.')
 ON CONFLICT (id) DO NOTHING;
 
+-- FOOD ITEMS
 INSERT INTO food_items (id, name, description, price, chef_id, image_url, category_id)
 VALUES
 ('f1','Village Rice Bowl','Traditional rice bowl with seasonal curries',1250.00,'u3','https://images.unsplash.com/photo-1546833999-b9f581a1996d?auto=format&fit=crop&w=600&q=80','c1'),
@@ -86,8 +72,29 @@ VALUES
 ('f26','Woodapple Cream Soda','Native woodapple pulp mixed with sparkling soda and a splash of coconut milk',450.00,'u4','https://images.unsplash.com/photo-1513558161293-cdaf765ed2fd?auto=format&fit=crop&w=600&q=80','c5'),
 
 -- c6: Other (4 more)
-('f27','String Hopper Platter','Steamed rice-flour noodle rounds served with dhal, coconut sambol and seeni sambol',1100.00,'u3','https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=600&q=80','c6'),
+('f27','String Hopper Platter','Steamed rice-flour noodle rounds served with dhal, coconut sambol and seeni seeni',1100.00,'u3','https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=600&q=80','c6'),
 ('f28','Egg Hopper Basket','Three crispy hoppers each cradling a perfectly set sunny-side-up egg',950.00,'u4','https://images.unsplash.com/photo-1626082927389-6cd097cdc6ec?auto=format&fit=crop&w=600&q=80','c6'),
 ('f29','Dutch Lamprais','Oven-baked banana-leaf parcel of stock rice, frikkadels, brinjal moju and more',2400.00,'u3','https://images.unsplash.com/photo-1559847844-5315695dadae?auto=format&fit=crop&w=600&q=80','c6'),
 ('f30','Pittu & Chicken Curry','Steamed rice-and-coconut pittu cylinders paired with aromatic country chicken curry',1300.00,'u4','https://images.unsplash.com/photo-1555939594-58d7cb561ad1?auto=format&fit=crop&w=600&q=80','c6')
+ON CONFLICT (id) DO NOTHING;
+
+-- ORDERS
+INSERT INTO orders (id, customer_id, meal_description, status)
+VALUES
+('o1','u1','Vegetarian lunch for 5 people','Pending'),
+('o2','u2','Birthday dinner for 8 guests','Quoted')
+ON CONFLICT (id) DO NOTHING;
+
+-- QUOTES
+INSERT INTO quotes (id, order_id, chef_id, price, note, is_accepted)
+VALUES
+('q1','o1','u3',45.00,'Healthy vegetarian buffet',FALSE),
+('q2','o1','u4',40.00,'Rice and curry vegetarian set',TRUE),
+('q3','o2','u3',120.00,'Full birthday dinner menu',FALSE)
+ON CONFLICT (id) DO NOTHING;
+
+-- TRANSACTIONS
+INSERT INTO transactions (id, order_id, gateway_ref_id, amount, status)
+VALUES
+('t1','o1','PAY123456',40.00,'Escrow')
 ON CONFLICT (id) DO NOTHING;

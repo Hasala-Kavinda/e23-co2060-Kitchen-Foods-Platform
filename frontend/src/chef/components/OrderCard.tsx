@@ -59,6 +59,13 @@ export const OrderCard = ({ order, onStatusChange }: OrderCardProps) => {
         ))}
       </div>
 
+      {order.description && (
+        <div className="mt-3 mb-4 p-3 bg-slate-50 border border-slate-100 rounded-xl text-xs text-slate-600">
+          <span className="font-bold text-slate-700 block mb-1">Custom Notes:</span>
+          {order.description}
+        </div>
+      )}
+
       <div className="pt-4 border-t border-slate-100 flex items-center justify-between">
         <div className="text-sm">
           <span className="text-slate-500">Total:</span>
