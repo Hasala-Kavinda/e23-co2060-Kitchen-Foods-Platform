@@ -8,7 +8,7 @@ import {
   updateUserByIdService,
 } from "./user.service.js";
 
-const VALID_ORDER_STATUSES = new Set(["Pending", "Quoted", "Paid", "Completed"]);
+const VALID_ORDER_STATUSES = new Set(["Pending", "Preparing", "Ready", "Completed", "Cancelled", "Delivered", "Quoted", "Paid"]);
 
 export const getStatsService = async () => {
   const [userCount, chefCount, orderCount, foodCount] = await Promise.all([

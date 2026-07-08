@@ -26,4 +26,5 @@ export interface ChefProfile {
   avatar: string;
   location: string;
   bio: string;
+  email?: string;
 }

@@ -18,7 +18,7 @@ const statusConfig = {
 };
 
 export const OrderCard = ({ order, onStatusChange }: OrderCardProps) => {
-  const config = statusConfig[order.status];
+  const config = statusConfig[order.status] ?? statusConfig['pending'];
 
   return (
     <motion.div 

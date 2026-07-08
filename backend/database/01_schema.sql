@@ -61,7 +61,7 @@ CREATE TABLE IF NOT EXISTS orders (
     total_price DECIMAL(10,2),
     delivery_date DATE,
     delivery_time VARCHAR(50),
-    status VARCHAR(20) CHECK (status IN ('Pending', 'Quoted', 'Paid', 'Completed')) DEFAULT 'Pending',
+    status VARCHAR(20) CHECK (status IN ('Pending', 'Preparing', 'Ready', 'Completed', 'Cancelled', 'Delivered', 'Quoted', 'Paid')) DEFAULT 'Pending',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 

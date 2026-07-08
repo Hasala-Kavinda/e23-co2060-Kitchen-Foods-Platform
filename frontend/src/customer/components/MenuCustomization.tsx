@@ -180,7 +180,7 @@ export const MenuCustomization: React.FC = () => {
       chefId: selectedFoodItem?.chefId,
       foodItemId: selectedFoodItem?.id,
       quantity: data.guests || 1,
-      totalPrice: (selectedFoodItem?.price || 0) * (data.guests || 1),
+      totalPrice: data.budget || (selectedFoodItem?.price || 0) * (data.guests || 1),
       deliveryDate: data.date,
       deliveryTime: data.description?.match(/Time: (.*)/)?.[1]?.trim() || "ASAP",
       mealDescription: data.description || `Order for ${selectedFoodItem?.name}`
@@ -584,6 +584,14 @@ export const MenuCustomization: React.FC = () => {
 
                           <div className="flex items-center gap-8 md:border-l md:border-stone-900/10 md:pl-8">
                             <div className="text-right">
+                              <div className="text-xl font-bold text-stone-900 mb-1">
+                                LKR {req.budget.toLocaleString()}
+                              </div>
+                              <div className="text-xs text-stone-500 uppercase font-bold tracking-widest font-mono">
+                                Bid Price
+                              </div>
+                            </div>
+                            <div className="text-right border-l border-stone-900/10 pl-8">
                               <div className="text-3xl font-bold text-stone-900 mb-1">
                                 {req.bids}
                               </div>

@@ -92,12 +92,24 @@ class Order {
        FROM orders o
        JOIN users u ON o.customer_id = u.uid
        LEFT JOIN food_items fi ON o.food_item_id = fi.id
-       WHERE o.chef_id = $1
+       WHERE o.status = 'Pending'
+          OR o.chef_id = $1
        ORDER BY o.created_at DESC`,
       [chefId]
     );
 
     return result.rows.map(Order.mapRow);
+  }
+
+  static async claimOrder(id, chefId) {
+    const result = await pool.query(
+      `UPDATE orders 
+       SET chef_id = $1, status = 'Preparing' 
+       WHERE id = $2 AND status = 'Pending'
+       RETURNING *`,
+      [chefId, id]
+    );
+    return result.rows[0] ? Order.mapRow(result.rows[0]) : null;
   }
 
   static async findByCustomerId(customerId) {
