@@ -1,21 +1,27 @@
 import pkg from "pg";
 import dotenv from "dotenv";
+import path from "path";
+import { fileURLToPath } from "url";
 
-dotenv.config({ path: "./.env" });
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+dotenv.config({path:"./.env"});
+dotenv.config({path: path.resolve(__dirname, "../../.env")}); // Load environment variables from .env file
 
 const { Pool } = pkg;
 
 const pool = new Pool({
-  user: process.env.DB_USER,
-  host: process.env.DB_HOST,
-  database: process.env.DB_NAME,
-  password: process.env.DB_PASSWORD,
-  port: process.env.DB_PORT,
+  user: process.env.DB_USER || "postgres",
+  host: process.env.DB_HOST || "127.0.0.1",
+  database: process.env.DB_NAME || "kitchen-foods",
+  password: String(process.env.DB_PASSWORD || "zoom119"), // Keeps SCRAM happy by guaranteeing a string
+  port: Number(process.env.DB_PORT || 5432),
 });
 
 // testing connection
 pool.on("connect", () => {
-  // console.log("Connection pool established successfully");
+  console.log("Connection pool established successfully!");
 });
 
 export default pool;

@@ -17,9 +17,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const openApiFilePath = path.resolve(__dirname, "../docs/openapi.json");
 
-dotenv.config({
-  path: "./.env",
-});
+
 
 // Middlewares
 app.use(express.json()); // parse the json bodies
