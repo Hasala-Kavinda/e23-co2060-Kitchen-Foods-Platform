@@ -14,9 +14,33 @@ CREATE TABLE IF NOT EXISTS orders (
     id VARCHAR(255) PRIMARY KEY,
     customer_id VARCHAR(255) REFERENCES users(uid) ON DELETE CASCADE,
     meal_description TEXT NOT NULL,
+    food_item_id VARCHAR(255),
+    chef_id VARCHAR(255) REFERENCES users(uid) ON DELETE SET NULL,
+    quantity INTEGER DEFAULT 1,
+    total_price DECIMAL(10,2),
+    delivery_date DATE,
+    delivery_time VARCHAR(50),
     status VARCHAR(20) CHECK (status IN ('Pending', 'Quoted', 'Paid', 'Completed')) DEFAULT 'Pending',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+ALTER TABLE orders
+ADD COLUMN IF NOT EXISTS food_item_id VARCHAR(255);
+
+ALTER TABLE orders
+ADD COLUMN IF NOT EXISTS chef_id VARCHAR(255);
+
+ALTER TABLE orders
+ADD COLUMN IF NOT EXISTS quantity INTEGER DEFAULT 1;
+
+ALTER TABLE orders
+ADD COLUMN IF NOT EXISTS total_price DECIMAL(10,2);
+
+ALTER TABLE orders
+ADD COLUMN IF NOT EXISTS delivery_date DATE;
+
+ALTER TABLE orders
+ADD COLUMN IF NOT EXISTS delivery_time VARCHAR(50);
 
 
 -- QUOTES TABLE (CHEF BIDS)
@@ -63,7 +87,29 @@ CREATE TABLE IF NOT EXISTS food_items (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM pg_constraint
+        WHERE conname = 'orders_food_item_id_fkey'
+    ) THEN
+        ALTER TABLE orders
+        ADD CONSTRAINT orders_food_item_id_fkey
+        FOREIGN KEY (food_item_id) REFERENCES food_items(id) ON DELETE SET NULL;
+    END IF;
+END $$;
+
 
 -- Prevent chef quoting same order twice
-ALTER TABLE quotes
-ADD CONSTRAINT unique_quote UNIQUE (order_id, chef_id);
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM pg_constraint
+        WHERE conname = 'unique_quote'
+    ) THEN
+        ALTER TABLE quotes
+        ADD CONSTRAINT unique_quote UNIQUE (order_id, chef_id);
+    END IF;
+END $$;

@@ -18,7 +18,7 @@ import {
 import type { FoodCategory, FoodItem, Request } from "../types";
 import { RequestForm } from "./RequestForm";
 import { motion, AnimatePresence } from "motion/react";
-import { mockFoodItems } from "../data/mockFoodItems";
+
 
 export const MenuCustomization: React.FC = () => {
   // Local state for requests since we don't have AppContext in MVP branch yet
@@ -66,8 +66,7 @@ export const MenuCustomization: React.FC = () => {
         });
 
         setMenuCategories(sortedCategories);
-        // Use only mock items to ensure exactly 5 items per category
-        setMenuItems(mockFoodItems);
+        setMenuItems(itemsData);
       } catch (error) {
         console.error(error);
         setMenuError("Unable to load menu items. Please try again soon.");
@@ -115,14 +114,15 @@ export const MenuCustomization: React.FC = () => {
     return () => clearInterval(interval);
   }, [API_BASE_URL]);
 
-  const categoryStyles = {
+  type CategoryStyle = { icon: React.ComponentType<any>; color: string };
+  const categoryStyles: Record<string, CategoryStyle> = {
     "rice & curry": { icon: Soup, color: "text-orange-500" },
     "short eats": { icon: CheckSquare, color: "text-yellow-500" },
     salads: { icon: Leaf, color: "text-green-500" },
     desserts: { icon: IceCream, color: "text-pink-500" },
     beverages: { icon: Coffee, color: "text-blue-500" },
     other: { icon: Utensils, color: "text-purple-500" },
-  } as const;
+  };
 
   const groupedMenuItems = useMemo(() => {
     const normalizedQuery = searchQuery.trim().toLowerCase();
