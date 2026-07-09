@@ -114,14 +114,14 @@ export const MenuCustomization: React.FC = () => {
     return () => clearInterval(interval);
   }, [API_BASE_URL]);
 
-  type CategoryStyle = { icon: React.ComponentType<any>; color: string };
+  type CategoryStyle = { icon: React.ComponentType<any>; gradient: string; accent: string };
   const categoryStyles: Record<string, CategoryStyle> = {
-    "rice & curry": { icon: Soup, color: "text-orange-500" },
-    "short eats": { icon: CheckSquare, color: "text-yellow-500" },
-    salads: { icon: Leaf, color: "text-green-500" },
-    desserts: { icon: IceCream, color: "text-pink-500" },
-    beverages: { icon: Coffee, color: "text-blue-500" },
-    other: { icon: Utensils, color: "text-purple-500" },
+    "rice & curry": { icon: Soup,       gradient: "from-orange-400 to-red-500",    accent: "#ea580c" },
+    "short eats":   { icon: CheckSquare, gradient: "from-yellow-400 to-orange-400", accent: "#d97706" },
+    salads:         { icon: Leaf,        gradient: "from-green-400 to-emerald-600", accent: "#16a34a" },
+    desserts:       { icon: IceCream,    gradient: "from-pink-400 to-rose-600",     accent: "#e11d48" },
+    beverages:      { icon: Coffee,      gradient: "from-sky-400 to-blue-600",      accent: "#2563eb" },
+    other:          { icon: Utensils,    gradient: "from-violet-400 to-purple-600", accent: "#7c3aed" },
   };
 
   const groupedMenuItems = useMemo(() => {
@@ -284,200 +284,227 @@ export const MenuCustomization: React.FC = () => {
             )}
           </div>
 
-          {/* Categories */}
-          <div className="flex overflow-x-auto pb-8 gap-6 no-scrollbar md:grid md:grid-cols-3 lg:grid-cols-6 lg:overflow-visible">
+          {/* Categories — minimal pill tabs */}
+          <div className="flex flex-wrap justify-center gap-2.5 mb-4">
             {menuCategories.map((cat) => {
               const normalizedName = cat.name.toLowerCase();
               const style = categoryStyles[normalizedName] ?? {
                 icon: Utensils,
-                color: "text-stone-500",
+                gradient: "from-stone-400 to-stone-600",
+                accent: "#78716c",
               };
               const Icon = style.icon;
               const isActive = selectedCategoryId === cat.id;
               const itemCount = (groupedMenuItems.get(cat.id) ?? []).length;
 
               return (
-                <button
+                <motion.button
                   key={cat.id}
                   onClick={() => handleCategoryClick(cat.id)}
-                  className={`flex flex-col items-center justify-center p-8 rounded-[32px] border transition-all duration-300 group cursor-pointer flex-shrink-0 w-40 md:w-auto
-                                ${
-                                  isActive
-                                    ? "bg-brand-primary border-brand-primary text-white shadow-2xl scale-105 z-10 shadow-brand-primary/20"
-                                    : "glass border-stone-900/5 hover:border-brand-primary/50 text-stone-900/80 hover:text-stone-900"
-                                }
-                            `}
+                  whileTap={{ scale: 0.96 }}
+                  transition={{ duration: 0.15 }}
+                  className="relative flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-semibold transition-all duration-200 cursor-pointer"
+                  style={{
+                    background: isActive ? `${style.accent}18` : "#ffffff",
+                    color: isActive ? style.accent : "#57534e",
+                    border: isActive ? `1.5px solid ${style.accent}60` : "1.5px solid #e7e5e4",
+                    boxShadow: isActive ? `0 2px 16px ${style.accent}20` : "0 1px 4px rgba(0,0,0,0.04)",
+                  }}
                 >
-                  <div
-                    className={`w-16 h-16 rounded-full flex items-center justify-center mb-4 transition-transform ${
-                      isActive
-                        ? "bg-stone-900/20 text-stone-900"
-                        : `bg-stone-900/5 ${style.color} group-hover:scale-110`
-                    }`}
-                  >
-                    <Icon size={28} />
-                  </div>
-                  <span className="font-bold font-serif">{cat.name}</span>
+                  <Icon size={15} />
+                  <span>{cat.name}</span>
                   {itemCount > 0 && (
                     <span
-                      className={`mt-2 text-xs font-mono font-bold px-2 py-0.5 rounded-full ${
-                        isActive
-                          ? "bg-white/20 text-white"
-                          : "bg-stone-900/5 text-stone-500"
-                      }`}
+                      className="ml-0.5 text-[10px] font-bold px-1.5 py-0.5 rounded-full"
+                      style={{
+                        background: isActive ? `${style.accent}25` : "#f5f5f4",
+                        color: isActive ? style.accent : "#a8a29e",
+                      }}
                     >
-                      {itemCount} {itemCount === 1 ? "item" : "items"}
+                      {itemCount}
                     </span>
                   )}
-                </button>
+                  {isActive && (
+                    <motion.span
+                      layoutId="pill-active-bg"
+                      className="absolute inset-0 rounded-full -z-10"
+                      style={{ background: `${style.accent}10` }}
+                    />
+                  )}
+                </motion.button>
               );
             })}
           </div>
         </div>
 
-        {/* Pop-out food items panel for the selected category */}
+        {/* Food items — photo-first portrait cards */}
         <AnimatePresence mode="wait">
-          {selectedCategoryId && !selectedFoodItem && (
-            <motion.div
-              key={`items-${selectedCategoryId}`}
-              initial={{ opacity: 0, height: 0, y: -20 }}
-              animate={{ opacity: 1, height: "auto", y: 0 }}
-              exit={{ opacity: 0, height: 0, y: -20 }}
-              transition={{ duration: 0.4, ease: [0.23, 1, 0.32, 1] }}
-              className="overflow-hidden mb-16"
-            >
-              <div className="glass rounded-[40px] border border-brand-primary/20 p-8 md:p-10 shadow-2xl shadow-brand-primary/5">
-                {/* Category header */}
-                <div className="flex items-center justify-between mb-8">
-                  <div>
-                    <h3 className="text-2xl font-serif font-bold text-stone-900">
-                      {selectedCategory?.name}
-                    </h3>
-                    <p className="text-sm text-stone-600 mt-1">
-                      {selectedCategory?.description} — Tap an item to order.
-                    </p>
+          {selectedCategoryId && !selectedFoodItem && (() => {
+            const activeStyle = categoryStyles[selectedCategory?.name.toLowerCase() ?? ""] ?? {
+              gradient: "from-stone-400 to-stone-600",
+              accent: "#78716c",
+              icon: Utensils,
+            };
+            return (
+              <motion.div
+                key={`items-${selectedCategoryId}`}
+                initial={{ opacity: 0, y: 24 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -16 }}
+                transition={{ duration: 0.45, ease: [0.23, 1, 0.32, 1] }}
+                className="mb-16"
+              >
+                {/* Inline category header */}
+                <div className="flex items-center justify-between mb-6">
+                  <div className="flex items-center gap-3">
+                    <div
+                      className={`w-9 h-9 rounded-xl flex items-center justify-center text-white bg-gradient-to-br ${activeStyle.gradient}`}
+                    >
+                      <activeStyle.icon size={18} />
+                    </div>
+                    <div>
+                      <h3 className="text-xl font-serif font-bold text-stone-900 leading-none">{selectedCategory?.name}</h3>
+                      <p className="text-xs text-stone-400 mt-0.5">{selectedCategory?.description} — tap to order</p>
+                    </div>
                   </div>
                   <button
                     onClick={() => setSelectedCategoryId(null)}
-                    className="text-sm font-bold text-stone-500 hover:text-brand-primary transition-colors px-4 py-2 rounded-full hover:bg-stone-900/5"
+                    className="w-8 h-8 rounded-full bg-stone-100 hover:bg-stone-200 flex items-center justify-center text-stone-500 hover:text-stone-800 transition-all text-sm"
                   >
-                    Close ✕
+                    ✕
                   </button>
                 </div>
 
-                {/* Items grid */}
+                {/* Items */}
                 {menuLoading ? (
-                  <div className="text-center py-12 text-stone-500 font-medium">
-                    Loading items...
+                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                    {[...Array(4)].map((_, i) => (
+                      <div key={i} className="aspect-[3/4] rounded-[20px] bg-stone-200 animate-pulse" />
+                    ))}
                   </div>
                 ) : menuError ? (
-                  <div className="text-center py-12 text-rose-500 font-medium">
-                    {menuError}
-                  </div>
+                  <div className="text-center py-12 text-rose-500 font-medium">{menuError}</div>
                 ) : (groupedMenuItems.get(selectedCategoryId) ?? []).length === 0 ? (
-                  <div className="text-center py-12 text-stone-500 font-medium">
-                    No items found in this category.
+                  <div className="text-center py-16 text-stone-400">
+                    <Utensils size={32} className="mx-auto mb-3 opacity-30" />
+                    <p className="font-medium">No items in this category yet.</p>
                   </div>
                 ) : (
-                  <div className="grid gap-5 md:grid-cols-2">
-                    {(groupedMenuItems.get(selectedCategoryId) ?? []).map(
-                      (item, idx) => (
-                        <motion.div
-                          key={item.id}
-                          initial={{ opacity: 0, y: 16 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          transition={{ delay: idx * 0.08, duration: 0.35 }}
-                          whileHover={{ y: -4, scale: 1.01 }}
-                          onClick={() => handleFoodItemClick(item)}
-                          className="flex gap-5 p-5 rounded-[24px] border border-stone-900/10 bg-white/60 hover:border-brand-primary/40 hover:shadow-xl hover:shadow-brand-primary/10 transition-all cursor-pointer group relative overflow-hidden"
-                        >
-                          {/* Uber-style Badge */}
-                          {(idx === 0 || idx === 2) && (
-                            <div className="absolute top-0 right-0 bg-brand-primary text-white text-[10px] font-bold px-3 py-1 rounded-bl-2xl z-20">
-                              TOP RATED
-                            </div>
-                          )}
+                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                    {(groupedMenuItems.get(selectedCategoryId) ?? []).map((item, idx) => (
+                      <motion.div
+                        key={item.id}
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: idx * 0.06, duration: 0.4 }}
+                        whileHover={{ y: -6 }}
+                        onClick={() => handleFoodItemClick(item)}
+                        className="group cursor-pointer"
+                      >
+                        {/* Photo */}
+                        <div className="relative aspect-[3/4] rounded-[20px] overflow-hidden mb-3 shadow-md shadow-stone-900/10">
                           <img
                             src={item.imageUrl}
                             alt={item.name}
-                            className="h-24 w-24 rounded-2xl object-cover group-hover:scale-105 transition-transform flex-shrink-0"
+                            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
                             loading="lazy"
                           />
-                          <div className="flex-1 flex flex-col justify-between min-w-0">
-                             <div>
-                               <div className="flex items-center gap-2 mb-1">
-                                 <h5 className="text-lg font-serif font-bold text-stone-900 group-hover:text-brand-primary transition-colors truncate">
-                                   {item.name}
-                                 </h5>
-                               </div>
-                               <p className="text-sm text-stone-600 line-clamp-2">
-                                 {item.description}
-                               </p>
-                               <div className="flex items-center gap-4 mt-3 text-[10px] font-bold uppercase tracking-widest text-stone-400">
-                                 <div className="flex items-center gap-1 text-brand-primary">
-                                   <Star size={12} className="fill-current" />
-                                   <span>{item.rating || "4.5"}</span>
-                                 </div>
-                                 <div className="flex items-center gap-1 border-l border-stone-200 pl-4">
-                                   <Clock size={12} />
-                                   <span>{item.prepTime || "20-30 min"}</span>
-                                 </div>
-                               </div>
-                             </div>
-                            <div className="flex items-center justify-between mt-3">
-                              <span className="text-lg font-bold text-brand-primary">
-                                LKR {item.price.toLocaleString()}
-                              </span>
-                              <span className="flex items-center gap-1.5 px-3 py-1.5 bg-brand-primary/10 text-brand-primary text-xs font-bold rounded-full group-hover:bg-brand-primary group-hover:text-white transition-all">
-                                <ShoppingBag size={14} />
-                                Select
-                              </span>
+                          {/* Gradient scrim */}
+                          <div className="absolute inset-0 bg-gradient-to-t from-stone-900/70 via-transparent to-transparent" />
+
+                          {/* Badge */}
+                          {idx < 2 && (
+                            <div
+                              className="absolute top-3 left-3 px-2 py-0.5 rounded-full text-white text-[10px] font-bold uppercase tracking-wider"
+                              style={{ background: activeStyle.accent }}
+                            >
+                              Top Pick
                             </div>
+                          )}
+
+                          {/* Bottom: price */}
+                          <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between">
+                            <span className="text-white font-bold text-base">LKR {item.price.toLocaleString()}</span>
+                            <span className="w-8 h-8 rounded-full bg-white flex items-center justify-center shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                              <ShoppingBag size={14} style={{ color: activeStyle.accent }} />
+                            </span>
                           </div>
-                        </motion.div>
-                      ),
-                    )}
+                        </div>
+
+                        {/* Info below photo */}
+                        <div className="px-1">
+                          <h5 className="font-serif font-bold text-stone-900 text-sm leading-snug mb-1 line-clamp-1 group-hover:text-brand-primary transition-colors">
+                            {item.name}
+                          </h5>
+                          <div className="flex items-center gap-3 text-[10px] text-stone-400 font-semibold uppercase tracking-wider">
+                            <span className="flex items-center gap-1" style={{ color: activeStyle.accent }}>
+                              <Star size={10} className="fill-current" /> {item.rating || "4.8"}
+                            </span>
+                            <span className="flex items-center gap-1">
+                              <Clock size={10} /> {item.prepTime || "25 min"}
+                            </span>
+                          </div>
+                        </div>
+                      </motion.div>
+                    ))}
                   </div>
                 )}
-              </div>
-            </motion.div>
-          )}
+              </motion.div>
+            );
+          })()}
         </AnimatePresence>
 
-        {/* Order form when a food item is selected */}
-        <div className="min-h-[400px]">
-          <AnimatePresence mode="wait">
-            {selectedFoodItem && selectedCategory ? (
+        {/* Order form — cinematic selected item strip */}
+        <AnimatePresence mode="wait">
+          {selectedFoodItem && selectedCategory && (() => {
+            const activeStyle = categoryStyles[selectedCategory.name.toLowerCase()] ?? {
+              gradient: "from-stone-400 to-stone-600",
+              accent: "#78716c",
+              icon: Utensils,
+            };
+            return (
               <motion.div
                 key="form"
-                initial={{ opacity: 0, y: 20 }}
+                initial={{ opacity: 0, y: 24 }}
                 animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -20 }}
+                exit={{ opacity: 0, y: -16 }}
                 transition={{ duration: 0.5 }}
-                className="max-w-4xl mx-auto"
+                className="max-w-4xl mx-auto mt-10"
               >
-                {/* Selected item summary */}
-                <div className="glass rounded-[28px] border border-brand-primary/20 p-5 mb-6 flex gap-5 items-center">
+                {/* Cinematic selected item strip */}
+                <div className="relative rounded-[28px] overflow-hidden mb-8 shadow-xl shadow-stone-900/10">
+                  {/* Background food image, blurred */}
                   <img
                     src={selectedFoodItem.imageUrl}
-                    alt={selectedFoodItem.name}
-                    className="h-20 w-20 rounded-2xl object-cover flex-shrink-0"
+                    alt=""
+                    className="absolute inset-0 w-full h-full object-cover scale-110 blur-sm"
+                    aria-hidden="true"
                   />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-mono text-brand-primary uppercase tracking-widest mb-1">
-                      Selected Item
-                    </p>
-                    <h4 className="text-xl font-serif font-bold text-stone-900 truncate">
-                      {selectedFoodItem.name}
-                    </h4>
-                    <p className="text-sm text-stone-600">
-                      {selectedFoodItem.description}
-                    </p>
-                  </div>
-                  <div className="text-right flex-shrink-0">
-                    <span className="text-xl font-bold text-brand-primary">
-                      LKR {selectedFoodItem.price.toLocaleString()}
-                    </span>
+                  <div className="absolute inset-0 bg-stone-900/60" />
+
+                  {/* Foreground content */}
+                  <div className="relative z-10 flex gap-5 items-center p-6">
+                    <img
+                      src={selectedFoodItem.imageUrl}
+                      alt={selectedFoodItem.name}
+                      className="h-24 w-24 md:h-28 md:w-28 rounded-2xl object-cover flex-shrink-0 border-2 border-white/20 shadow-2xl"
+                    />
+                    <div className="flex-1 min-w-0">
+                      <div
+                        className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-white text-[10px] font-bold uppercase tracking-widest mb-2"
+                        style={{ background: `${activeStyle.accent}90` }}
+                      >
+                        <activeStyle.icon size={10} /> {selectedCategory.name}
+                      </div>
+                      <h4 className="text-xl md:text-2xl font-serif font-bold text-white leading-tight truncate">
+                        {selectedFoodItem.name}
+                      </h4>
+                      <p className="text-white/60 text-sm mt-1 line-clamp-1">{selectedFoodItem.description}</p>
+                    </div>
+                    <div className="text-right flex-shrink-0">
+                      <div className="text-2xl font-bold text-white">LKR {selectedFoodItem.price.toLocaleString()}</div>
+                      <div className="text-white/50 text-xs font-mono uppercase tracking-wider mt-0.5">per serving</div>
+                    </div>
                   </div>
                 </div>
 
@@ -487,131 +514,198 @@ export const MenuCustomization: React.FC = () => {
                   onSubmit={handleFormSubmit}
                 />
               </motion.div>
-            ) : !selectedFoodItem ? (
-              <motion.div
-                key="list"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.5 }}
-              >
-                <div className="flex items-center justify-between mb-8">
-                  <h3 className="text-3xl font-serif font-bold text-stone-900">
-                    Your Active Requests
-                  </h3>
-                </div>
+            );
+          })()}
+        </AnimatePresence>
 
+        {/* Active Requests — shown when no food item is selected */}
+        <AnimatePresence mode="wait">
+          {!selectedFoodItem && (
+            <motion.div
+              key="requests-list"
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -16 }}
+              transition={{ duration: 0.45 }}
+              className="mt-20"
+            >
+              <div className="flex items-center justify-between mb-8">
+                <div>
+                  <h3 className="text-3xl font-serif font-bold text-stone-900">Your Active Requests</h3>
+                  <p className="text-sm text-stone-500 mt-1">Orders you've placed — track them here.</p>
+                </div>
+              </div>
+
+              {requests.length === 0 ? (
+                <motion.div 
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  className="text-center py-20 bg-white rounded-[40px] border border-dashed border-stone-200 shadow-sm"
+                >
+                  <motion.div 
+                    animate={{ y: [0, -10, 0] }}
+                    transition={{ repeat: Infinity, duration: 3, ease: "easeInOut" }}
+                    className="w-20 h-20 bg-stone-50 rounded-full flex items-center justify-center mx-auto mb-6 text-brand-primary/40 shadow-inner"
+                  >
+                    <Calendar size={32} />
+                  </motion.div>
+                  <h4 className="text-2xl font-bold text-stone-900 font-serif mb-2">No active requests</h4>
+                  <p className="text-stone-500">Select a category above to place an order!</p>
+                </motion.div>
+              ) : (
                 <div className="grid gap-6">
-                  {requests.length === 0 ? (
-                    <div className="text-center py-16 glass rounded-[40px] border border-dashed border-stone-900/20">
-                      <div className="w-16 h-16 bg-stone-900/5 rounded-full flex items-center justify-center mx-auto mb-6 text-stone-500">
-                        <Calendar size={28} />
-                      </div>
-                      <h4 className="text-xl font-bold text-stone-900 font-serif mb-2">
-                        No active requests
-                      </h4>
-                      <p className="text-stone-600">
-                        Select a category above to create one!
-                      </p>
-                    </div>
-                  ) : (
-                    requests.map((req) => (
-                      <div
+                  {requests.map((req, index) => {
+                    const statusSteps = ['Pending', 'Preparing', 'Ready', 'Delivered'];
+                    const currentStep = statusSteps.indexOf(req.status);
+                    const displayStatus = req.description.includes('STATUS:')
+                      ? req.description.split('STATUS:')[1].trim()
+                      : req.status;
+                    
+                    const isCancelled = displayStatus.toLowerCase() === 'cancelled';
+                    const isCompleted = displayStatus.toLowerCase() === 'completed' || displayStatus.toLowerCase() === 'delivered';
+
+                    return (
+                      <motion.div
                         key={req.id}
-                        onClick={() => handleRequestClick(req)}
-                        className="glass p-8 rounded-[32px] border border-stone-900/5 hover:border-brand-primary/50 hover:shadow-2xl hover:shadow-brand-primary/10 transition-all cursor-pointer group"
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: index * 0.1, duration: 0.5 }}
+                        whileHover={{ y: -4 }}
+                        className="bg-white rounded-[32px] border border-stone-100 shadow-lg shadow-stone-900/5 hover:shadow-xl hover:shadow-brand-primary/10 transition-all p-8 relative overflow-hidden group"
                       >
-                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-                          <div>
-                            <div className="flex items-center gap-4 mb-3">
-                              <h4 className="text-2xl font-serif font-bold text-stone-900 group-hover:text-brand-primary transition-colors">
-                                {req.title}
-                              </h4>
+                        {/* Decorative background blur for active cards */}
+                        {!isCancelled && !isCompleted && (
+                           <div className="absolute -right-20 -top-20 w-64 h-64 bg-brand-primary/5 rounded-full blur-[50px] pointer-events-none group-hover:bg-brand-primary/10 transition-colors" />
+                        )}
+
+                        <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-8 relative z-10">
+                          {/* Left: title + meta */}
+                          <div className="flex-1">
+                            <div className="flex items-center gap-4 mb-4 flex-wrap">
+                              <h4 className="text-2xl font-serif font-bold text-stone-900">{req.title}</h4>
                               <span
-                                className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide
-                                                        ${req.status === "completed" ? "bg-stone-900/10 text-stone-900/60" : "bg-green-500/20 text-green-400 border border-green-500/20"}`}
+                                className={`px-4 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest border ${
+                                  isCompleted
+                                    ? 'bg-emerald-50 text-emerald-600 border-emerald-200 shadow-sm shadow-emerald-500/10'
+                                    : isCancelled
+                                    ? 'bg-red-50 text-red-500 border-red-200'
+                                    : 'bg-brand-primary text-white border-brand-primary shadow-md shadow-brand-primary/20'
+                                }`}
                               >
-                                {req.description.includes("STATUS:") ? req.description.split("STATUS:")[1].trim() : req.status}
+                                {displayStatus}
                               </span>
                             </div>
-                            <div className="flex flex-wrap items-center gap-x-8 gap-y-3 text-sm text-stone-600 font-medium">
+
+                            <div className="flex flex-wrap items-center gap-x-8 gap-y-3 text-sm text-stone-500 mb-8">
                               <div className="flex items-center gap-2">
-                                <Calendar
-                                  size={16}
-                                  className="text-brand-primary"
-                                />
-                                {new Date(req.date).toLocaleDateString()}
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <Users
-                                  size={16}
-                                  className="text-brand-primary"
-                                />
-                                {req.guests} Guests
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <MapPin
-                                  size={16}
-                                  className="text-brand-primary"
-                                />
-                              </div>
-                            </div>
-                            
-                            {/* Uber-style Progress Tracker */}
-                            {req.status !== 'Cancelled' && (
-                              <div className="mt-8">
-                                <div className="flex justify-between text-[10px] font-bold uppercase tracking-widest text-stone-400 mb-2">
-                                  <span className={req.status === 'Pending' ? 'text-brand-primary' : ''}>Pending</span>
-                                  <span className={req.status === 'Preparing' ? 'text-brand-primary' : ''}>Preparing</span>
-                                  <span className={req.status === 'Ready' ? 'text-brand-primary' : ''}>Ready</span>
-                                  <span className={req.status === 'Delivered' || req.status === 'Completed' ? 'text-brand-primary' : ''}>Delivered</span>
+                                <div className="w-8 h-8 rounded-full bg-stone-50 flex items-center justify-center text-brand-primary">
+                                  <Calendar size={14} />
                                 </div>
-                                <div className="h-1.5 w-full bg-stone-100 rounded-full overflow-hidden">
-                                  <motion.div 
-                                    initial={{ width: 0 }}
-                                    animate={{ 
-                                      width: req.status === 'Pending' ? '12.5%' : 
-                                             req.status === 'Preparing' ? '37.5%' : 
-                                             req.status === 'Ready' ? '62.5%' : 
-                                             req.status === 'Delivered' || req.status === 'Completed' ? '100%' : '0%' 
-                                    }}
-                                    className="h-full bg-brand-primary"
-                                  />
+                                <span className="font-medium text-stone-700">
+                                  {new Date(req.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <div className="w-8 h-8 rounded-full bg-stone-50 flex items-center justify-center text-brand-primary">
+                                  <Users size={14} />
+                                </div>
+                                <span className="font-medium text-stone-700">
+                                  {req.guests} {req.guests === 1 ? 'Guest' : 'Guests'}
+                                </span>
+                              </div>
+                              {req.location && (
+                                <div className="flex items-center gap-2">
+                                  <div className="w-8 h-8 rounded-full bg-stone-50 flex items-center justify-center text-brand-primary">
+                                    <MapPin size={14} />
+                                  </div>
+                                  <span className="font-medium text-stone-700">
+                                    {req.location}
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Modern Node-based Progress tracker */}
+                            {!isCancelled && (
+                              <div className="relative pt-6 mt-6 border-t border-stone-100">
+                                {/* Connecting Line background */}
+                                <div className="absolute top-10 left-6 right-6 h-1.5 bg-stone-100 rounded-full" />
+                                
+                                {/* Active Connecting Line */}
+                                <motion.div 
+                                  initial={{ width: 0 }}
+                                  animate={{ width: `${(Math.max(0, currentStep) / (statusSteps.length - 1)) * 100}%` }}
+                                  transition={{ duration: 1.2, ease: [0.23, 1, 0.32, 1] }}
+                                  className="absolute top-10 left-6 h-1.5 bg-brand-primary rounded-full origin-left shadow-[0_0_10px_rgba(234,88,12,0.5)]"
+                                />
+
+                                <div className="relative flex justify-between">
+                                  {statusSteps.map((step, i) => {
+                                    const isStepCompleted = i < currentStep;
+                                    const isStepCurrent = i === currentStep;
+                                    
+                                    return (
+                                      <div key={step} className="flex flex-col items-center gap-4 relative z-10 w-24">
+                                         {/* Node point */}
+                                         <div className="relative">
+                                           <motion.div 
+                                             initial={false}
+                                             animate={{ 
+                                                scale: isStepCurrent ? 1.2 : 1,
+                                                backgroundColor: isStepCompleted || isStepCurrent ? '#ea580c' : '#f5f5f4',
+                                                borderColor: isStepCurrent ? '#ffffff' : 'transparent'
+                                             }}
+                                             className={`w-6 h-6 rounded-full flex items-center justify-center border-4 transition-colors duration-500 z-10 relative ${
+                                               isStepCurrent ? 'shadow-lg shadow-brand-primary/40' : ''
+                                             }`}
+                                           />
+                                           
+                                           {/* Pulsing ring for current step */}
+                                           {isStepCurrent && !isCompleted && (
+                                              <motion.div 
+                                                animate={{ scale: [1, 2.5], opacity: [0.6, 0] }}
+                                                transition={{ repeat: Infinity, duration: 2, ease: "easeOut" }}
+                                                className="absolute inset-0 bg-brand-primary rounded-full -z-10"
+                                              />
+                                           )}
+                                         </div>
+                                         
+                                         <span className={`text-[10px] font-bold uppercase tracking-widest text-center transition-colors duration-500 ${
+                                            isStepCompleted || isStepCurrent ? 'text-brand-primary' : 'text-stone-400'
+                                         }`}>
+                                           {step}
+                                         </span>
+                                      </div>
+                                    )
+                                  })}
                                 </div>
                               </div>
                             )}
                           </div>
 
-                          <div className="flex items-center gap-8 md:border-l md:border-stone-900/10 md:pl-8">
+                          {/* Right: price + chevron */}
+                          <div className="flex items-center gap-8 lg:border-l lg:border-stone-100 lg:pl-10 flex-shrink-0 self-center lg:self-stretch">
                             <div className="text-right">
-                              <div className="text-xl font-bold text-stone-900 mb-1">
+                              <div className="text-3xl font-serif font-bold text-stone-900">
                                 LKR {req.budget.toLocaleString()}
                               </div>
-                              <div className="text-xs text-stone-500 uppercase font-bold tracking-widest font-mono">
-                                Bid Price
+                              <div className="text-xs text-stone-400 uppercase font-bold tracking-widest mt-1">
+                                Total Amount
                               </div>
                             </div>
-                            <div className="text-right border-l border-stone-900/10 pl-8">
-                              <div className="text-3xl font-bold text-stone-900 mb-1">
-                                {req.bids}
-                              </div>
-                              <div className="text-xs text-stone-500 uppercase font-bold tracking-widest font-mono">
-                                Active Bids
-                              </div>
-                            </div>
-                            <div className="w-12 h-12 rounded-full bg-stone-900/5 group-hover:bg-brand-primary flex items-center justify-center text-stone-500 group-hover:text-stone-900 transition-all">
+                            <button className="w-12 h-12 rounded-full bg-stone-50 border border-stone-100 flex items-center justify-center text-stone-400 hover:bg-brand-primary hover:text-white hover:border-brand-primary transition-all group-hover:scale-105 shadow-sm">
                               <ChevronRight size={24} />
-                            </div>
+                            </button>
                           </div>
                         </div>
-                      </div>
-                    ))
-                  )}
+                      </motion.div>
+                    );
+                  })}
                 </div>
-              </motion.div>
-            ) : null}
-          </AnimatePresence>
-        </div>
+              )}
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </section>
   );
