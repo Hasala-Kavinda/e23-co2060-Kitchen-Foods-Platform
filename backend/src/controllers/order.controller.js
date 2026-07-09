@@ -1,4 +1,5 @@
 import Order from "../models/order.model.js";
+import pool from "../config/db.js";
 
 export const createOrder = async (req, res, next) => {
   try {
@@ -13,15 +14,26 @@ export const createOrder = async (req, res, next) => {
       deliveryTime,
     } = req.body;
 
-    if (!customerId || !chefId) {
-      return res.status(400).json({ error: "Customer ID and Chef ID are required" });
+    if (!customerId) {
+      return res.status(400).json({ error: "Customer ID is required" });
+    }
+
+    // Verify the customer actually exists in the users table
+    const customerCheck = await pool.query(
+      "SELECT uid FROM users WHERE uid = $1",
+      [customerId]
+    );
+    if (customerCheck.rows.length === 0) {
+      return res.status(400).json({
+        error: "Customer account not found. Please log out and log back in as a Customer."
+      });
     }
 
     const order = await Order.create({
       customerId,
       mealDescription,
       foodItemId,
-      chefId,
+      chefId: chefId || null,
       quantity,
       totalPrice,
       deliveryDate,

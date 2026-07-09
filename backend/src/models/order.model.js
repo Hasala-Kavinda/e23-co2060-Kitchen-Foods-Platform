@@ -90,7 +90,7 @@ class Order {
         u.full_name AS customer_name,
         fi.name AS food_item_name
        FROM orders o
-       JOIN users u ON o.customer_id = u.uid
+       LEFT JOIN users u ON o.customer_id = u.uid
        LEFT JOIN food_items fi ON o.food_item_id = fi.id
        WHERE o.status = 'Pending'
           OR o.chef_id = $1
