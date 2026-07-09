@@ -5,8 +5,9 @@ import { StatsCard } from './components/StatsCard';
 import { OrderCard } from './components/OrderCard';
 import { EarningsChart } from './components/EarningsChart';
 import { NewOrderToast } from './components/NewOrderToast';
-import { mockOrders, mockStats, mockChefProfile } from './mockData';
-import { Order } from './types';
+import { mockChefProfile } from './mockData';
+import { Order, ChefProfile } from './types';
+import { subDays, format } from 'date-fns';
 import { 
   DollarSign, 
   ShoppingBag, 
@@ -31,8 +32,25 @@ function cn(...inputs: ClassValue[]) {
 
 export default function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(true);
-  const [orders, setOrders] = useState<Order[]>(mockOrders);
-  const [profile, setProfile] = useState(mockChefProfile);
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [profile, setProfile] = useState<ChefProfile>(() => {
+    const userStr = localStorage.getItem("user");
+    if (userStr) {
+      const userObj = JSON.parse(userStr);
+      if (userObj.role === "Chef") {
+        return {
+          ...mockChefProfile,
+          id: userObj.uid,
+          name: userObj.full_name,
+          email: userObj.email,
+        };
+      }
+    }
+    return {
+      ...mockChefProfile,
+      email: "ranjan@chefdash.com"
+    };
+  });
   const [showToast, setShowToast] = useState(false);
   const [newOrderId, setNewOrderId] = useState('');
   const [activeTab, setActiveTab] = useState<'active' | 'completed'>('active');
@@ -41,6 +59,8 @@ export default function App() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
   const handleLogout = () => {
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
     setCurrentView('Dashboard');
     window.location.href = '/';
   };
@@ -52,30 +72,33 @@ export default function App() {
         if (!response.ok) throw new Error("Failed to fetch orders");
         const data = await response.json();
         
-        // Transform backend orders to match chef dashboard Order type
         const transformedOrders: Order[] = data.map((o: any) => ({
           id: o.id,
           customerName: o.customerName || "Customer",
-          items: [{ name: o.foodItemName || "Ordered Item", quantity: o.quantity, price: o.totalPrice / o.quantity }],
-          total: Number(o.totalPrice),
-          status: o.status.toLowerCase(),
+          items: [{ 
+            name: o.foodItemName || o.mealDescription || "Custom Order", 
+            quantity: o.quantity || 1, 
+            price: o.quantity > 0 ? Number(o.totalPrice) / o.quantity : Number(o.totalPrice) 
+          }],
+          total: Number(o.totalPrice) || 0,
+          status: (o.status?.toLowerCase() ?? 'pending') as Order['status'],
           createdAt: o.createdAt,
-          deliveryTime: o.deliveryTime || "ASAP"
+          deliveryTime: o.deliveryTime || "ASAP",
+          description: o.mealDescription
         }));
 
         setOrders(transformedOrders);
       } catch (err) {
         console.error("Error fetching orders:", err);
+        // Keep current orders on failure instead of falling back to mock data
       }
     };
 
-    if (isLoggedIn) {
-      fetchOrders();
-      // Poll for new orders every 30 seconds
-      const interval = setInterval(fetchOrders, 30000);
-      return () => clearInterval(interval);
-    }
-  }, [isLoggedIn, profile.id]);
+    fetchOrders();
+    // Poll for new orders every 15 seconds
+    const interval = setInterval(fetchOrders, 15000);
+    return () => clearInterval(interval);
+  }, [profile.id]);
 
   const handleProfileUpdate = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -94,22 +117,35 @@ export default function App() {
 
   const handleStatusChange = async (id: string, status: Order['status']) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/orders/${id}/status`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ status: status.charAt(0).toUpperCase() + status.slice(1) }),
-      });
+      let response: Response;
 
-      if (!response.ok) throw new Error("Failed to update status");
+      if (status === 'preparing') {
+        // Claim the order — atomically assigns this chef as the owner
+        response = await fetch(`${API_BASE_URL}/orders/${id}/claim`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ chefId: profile.id }),
+        });
+      } else {
+        // Normal status progression (ready, delivered, cancelled)
+        response = await fetch(`${API_BASE_URL}/orders/${id}/status`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status: status.charAt(0).toUpperCase() + status.slice(1) }),
+        });
+      }
 
-      setOrders(prev => prev.map(order => 
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}));
+        throw new Error(err.error || "Failed to update status");
+      }
+
+      setOrders(prev => prev.map(order =>
         order.id === id ? { ...order, status } : order
       ));
-    } catch (err) {
+    } catch (err: any) {
       console.error("Error updating status:", err);
-      alert("Failed to update order status");
+      alert(err.message || "Failed to update order status");
     }
   };
 
@@ -132,31 +168,28 @@ export default function App() {
   const activeOrders = orders.filter(o => o.status !== 'delivered' && o.status !== 'cancelled');
   const completedOrders = orders.filter(o => o.status === 'delivered' || o.status === 'cancelled');
 
-  // Calculate dynamic stats
-  // Orders that were pending but are now preparing, ready, or delivered
-  // PLUS any new orders that are preparing, ready, or delivered
-  const newlyAcceptedOrders = orders.filter(o => {
-    const initialOrder = mockOrders.find(mo => mo.id === o.id);
-    if (initialOrder) {
-      return initialOrder.status === 'pending' && o.status !== 'pending';
-    }
-    return o.status !== 'pending';
-  });
+  // Live stats based on real API orders
+  const totalEarnings = completedOrders
+    .filter(o => o.status === 'delivered')
+    .reduce((sum, o) => sum + o.total, 0);
+  const totalOrdersCount = orders.length;
+  const averageRating = orders.length > 0 ? "5.0" : "0.0";
 
-  // Orders that are delivered now but weren't initially delivered
-  const newlyFinishedOrders = orders.filter(o => {
-    const initialOrder = mockOrders.find(mo => mo.id === o.id);
-    if (initialOrder) {
-      return initialOrder.status !== 'delivered' && o.status === 'delivered';
-    }
-    return o.status === 'delivered';
+  // Generate real earnings history for the last 7 days based on actual completed orders
+  const earningsHistory = Array.from({ length: 7 }).map((_, i) => {
+    const d = subDays(new Date(), 6 - i);
+    const dateLabel = format(d, 'MMM dd');
+    const datePrefix = format(d, 'yyyy-MM-dd');
+    
+    const amount = completedOrders
+      .filter(o => o.status === 'delivered' && o.createdAt && o.createdAt.startsWith(datePrefix))
+      .reduce((sum, o) => sum + o.total, 0);
+      
+    return {
+      date: dateLabel,
+      amount
+    };
   });
-
-  const sessionEarnings = newlyFinishedOrders.reduce((sum, o) => sum + o.total, 0);
-  const sessionAcceptedCount = newlyAcceptedOrders.length;
-  
-  const displayTotalEarnings = mockStats.totalEarnings + sessionEarnings;
-  const displayTotalOrders = mockStats.totalOrders + sessionAcceptedCount;
 
   const renderDashboard = () => (
     <>
@@ -164,21 +197,19 @@ export default function App() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
         <StatsCard 
           label="Total Earnings" 
-          value={`Rs. ${displayTotalEarnings.toLocaleString()}`} 
+          value={`Rs. ${totalEarnings.toLocaleString()}`} 
           icon={DollarSign} 
-          trend={{ value: 12, isPositive: true }}
           color="emerald"
         />
         <StatsCard 
           label="Total Orders" 
-          value={displayTotalOrders} 
+          value={totalOrdersCount} 
           icon={ShoppingBag} 
-          trend={{ value: 8, isPositive: true }}
           color="orange"
         />
         <StatsCard 
           label="Avg. Rating" 
-          value={mockStats.averageRating} 
+          value={averageRating} 
           icon={Star} 
           color="amber"
         />
@@ -202,7 +233,7 @@ export default function App() {
                 <option>Last 30 Days</option>
               </select>
             </div>
-            <EarningsChart data={mockStats.earningsHistory} />
+             <EarningsChart data={earningsHistory} />
           </section>
 
           {/* Orders Section */}
@@ -385,7 +416,7 @@ export default function App() {
             </div>
             <div className="space-y-2">
               <label className="text-sm font-bold text-slate-700">Email Address</label>
-              <input type="email" defaultValue="ranjan@chefdash.com" className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500" />
+              <input type="email" defaultValue={profile.email} className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500" />
             </div>
           </div>
           <div className="space-y-2">
@@ -460,13 +491,13 @@ export default function App() {
                     <MapPin size={16} className="text-orange-500" />
                     {profile.location}
                   </div>
-                  <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-50 rounded-full text-sm text-slate-600">
+                   <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-50 rounded-full text-sm text-slate-600">
                     <Star size={16} className="text-amber-500" fill="currentColor" />
-                    {mockStats.averageRating} Rating
+                    {averageRating} Rating
                   </div>
                   <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-50 rounded-full text-sm text-slate-600">
                     <ShoppingBag size={16} className="text-blue-500" />
-                    {mockStats.totalOrders} Orders
+                    {totalOrdersCount} Orders
                   </div>
                 </div>
               </div>

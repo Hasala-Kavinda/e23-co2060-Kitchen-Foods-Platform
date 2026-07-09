@@ -35,6 +35,25 @@ export const createOrder = async (req, res, next) => {
   }
 };
 
+export const claimOrder = async (req, res, next) => {
+  try {
+    const { orderId } = req.params;
+    const { chefId } = req.body;
+
+    if (!chefId) {
+      return res.status(400).json({ error: "Chef ID is required" });
+    }
+
+    const order = await Order.claimOrder(orderId, chefId);
+    if (!order) {
+      return res.status(409).json({ error: "Order already claimed or not found" });
+    }
+    res.json(order);
+  } catch (err) {
+    next(err);
+  }
+};
+
 export const getChefOrders = async (req, res, next) => {
   try {
     const { chefId } = req.params;
