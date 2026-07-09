@@ -10,7 +10,7 @@ services:
       POSTGRES_PASSWORD: ${DB_PASSWORD:-zoom119}
       POSTGRES_DB: ${DB_NAME:-kitchen-foods}
     ports:
-      - "5433:5432"
+      - "${DB_PORT:-5433}:5432"
     volumes:
       - ./backend/database:/docker-entrypoint-initdb.d
       - pgdata:/var/lib/postgresql/data
