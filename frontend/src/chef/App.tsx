@@ -5,7 +5,8 @@ import { StatsCard } from './components/StatsCard';
 import { OrderCard } from './components/OrderCard';
 import { EarningsChart } from './components/EarningsChart';
 import { NewOrderToast } from './components/NewOrderToast';
-import { mockChefProfile } from './mockData';
+import { OrderDetailsModal } from './components/OrderDetailsModal';
+
 import { Order, ChefProfile } from './types';
 import { subDays, format } from 'date-fns';
 import { 
@@ -20,43 +21,121 @@ import {
   ChevronRight,
   Utensils,
   Settings,
-  Menu
+  Menu,
+  Activity,
+  CheckCircle,
+  Eye,
+  Trash2,
+  AlertTriangle,
+  X
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
+import './index.css';
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+// Custom Menu Item Type
+interface CustomFoodItem {
+  id: string;
+  name: string;
+  price: number;
+  category: string;
+  imageUrl: string;
+  prepTime: string;
+  description: string;
+}
+
 export default function App() {
-  const [isLoggedIn, setIsLoggedIn] = useState(true);
   const [orders, setOrders] = useState<Order[]>([]);
   const [profile, setProfile] = useState<ChefProfile>(() => {
     const userStr = localStorage.getItem("user");
     if (userStr) {
       const userObj = JSON.parse(userStr);
-      if (userObj.role === "Chef") {
-        return {
-          ...mockChefProfile,
-          id: userObj.uid,
-          name: userObj.full_name,
-          email: userObj.email,
-        };
-      }
+      return {
+        id: userObj.uid || '',
+        name: userObj.full_name || '',
+        specialty: userObj.specialty || '',
+        avatar: userObj.profile_img_url || '',
+        location: userObj.location || '',
+        bio: userObj.bio || '',
+        email: userObj.email || '',
+      };
     }
     return {
-      ...mockChefProfile,
-      email: "ranjan@chefdash.com"
+      id: '',
+      name: '',
+      specialty: '',
+      avatar: '',
+      location: '',
+      bio: '',
+      email: '',
     };
   });
+
   const [showToast, setShowToast] = useState(false);
   const [newOrderId, setNewOrderId] = useState('');
   const [activeTab, setActiveTab] = useState<'active' | 'completed'>('active');
   const [currentView, setCurrentView] = useState('Dashboard');
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+
+  // Advanced States
+  const [selectedOrderForModal, setSelectedOrderForModal] = useState<Order | null>(null);
+  const [isAddItemModalOpen, setIsAddItemModalOpen] = useState(false);
+  const [menuItems, setMenuItems] = useState<CustomFoodItem[]>([]);
+  const [menuLoading, setMenuLoading] = useState(false);
+  const [categories, setCategories] = useState<{id: string; name: string}[]>([]);
+
+
+  // Fetch this chef's real food items from the DB
+  useEffect(() => {
+    if (!profile.id) return;
+    const fetchMenuItems = async () => {
+      setMenuLoading(true);
+      try {
+        const res = await fetch(`${API_BASE_URL}/food`);
+        if (!res.ok) throw new Error('Failed to fetch menu items');
+        const data = await res.json();
+        // Filter only items belonging to this chef
+        const chefItems: CustomFoodItem[] = data
+          .filter((item: any) => item.chefId === profile.id)
+          .map((item: any) => ({
+            id: item.id,
+            name: item.name,
+            price: Number(item.price),
+            category: item.categoryName || 'Uncategorised',
+            imageUrl: item.imageUrl || '',
+            prepTime: '',
+            description: item.description || '',
+          }));
+        setMenuItems(chefItems);
+      } catch (err) {
+        console.error('Error fetching menu items:', err);
+      } finally {
+        setMenuLoading(false);
+      }
+    };
+    fetchMenuItems();
+  }, [profile.id]);
+
+  // Fetch food categories from DB
+  useEffect(() => {
+    const fetchCategories = async () => {
+      try {
+        const res = await fetch(`${API_BASE_URL}/food/categories`);
+        if (!res.ok) return;
+        const data = await res.json();
+        setCategories(data.map((c: any) => ({ id: c.id, name: c.name })));
+      } catch (err) {
+        console.error('Error fetching categories:', err);
+      }
+    };
+    fetchCategories();
+  }, []);
 
   const handleLogout = () => {
     localStorage.removeItem("token");
@@ -90,12 +169,10 @@ export default function App() {
         setOrders(transformedOrders);
       } catch (err) {
         console.error("Error fetching orders:", err);
-        // Keep current orders on failure instead of falling back to mock data
       }
     };
 
     fetchOrders();
-    // Poll for new orders every 15 seconds
     const interval = setInterval(fetchOrders, 15000);
     return () => clearInterval(interval);
   }, [profile.id]);
@@ -120,14 +197,12 @@ export default function App() {
       let response: Response;
 
       if (status === 'preparing') {
-        // Claim the order — atomically assigns this chef as the owner
         response = await fetch(`${API_BASE_URL}/orders/${id}/claim`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ chefId: profile.id }),
         });
       } else {
-        // Normal status progression (ready, delivered, cancelled)
         response = await fetch(`${API_BASE_URL}/orders/${id}/status`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
@@ -149,33 +224,80 @@ export default function App() {
     }
   };
 
-  const simulateNewOrder = () => {
-    const id = `ORD-${Math.floor(1000 + Math.random() * 9000)}`;
-    const newOrder: Order = {
-      id,
-      customerName: "New Customer",
-      items: [{ name: "Special Mixed Grill", quantity: 1, price: 1250.00 }],
-      total: 1250.00,
-      status: 'pending',
-      createdAt: new Date().toISOString(),
-      deliveryTime: "ASAP"
-    };
-    setOrders(prev => [newOrder, ...prev]);
-    setNewOrderId(id);
-    setShowToast(true);
+
+
+  const handleAddNewItem = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+    const name = formData.get('name') as string;
+    const price = Number(formData.get('price'));
+    const categoryId = formData.get('category') as string;
+    const imageUrl = (formData.get('imageUrl') as string) || '';
+    const description = formData.get('description') as string;
+
+    try {
+      const res = await fetch(`${API_BASE_URL}/food/chef`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name,
+          description,
+          price,
+          chefId: profile.id,
+          imageUrl,
+          categoryId,
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || 'Failed to add food item');
+      }
+      const saved = await res.json();
+      const newItem: CustomFoodItem = {
+        id: saved.id,
+        name: saved.name,
+        price: Number(saved.price),
+        category: saved.categoryName || categoryId,
+        imageUrl: saved.imageUrl || '',
+        prepTime: '',
+        description: saved.description || '',
+      };
+      setMenuItems(prev => [...prev, newItem]);
+      setIsAddItemModalOpen(false);
+    } catch (err: any) {
+      alert(err.message || 'Failed to add item');
+    }
+  };
+
+  const handleDeleteMenuItem = async (id: string) => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/food/chef/${id}`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chefId: profile.id }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || 'Failed to delete item');
+      }
+      setMenuItems(prev => prev.filter(item => item.id !== id));
+    } catch (err: any) {
+      alert(err.message || 'Failed to delete item');
+    }
   };
 
   const activeOrders = orders.filter(o => o.status !== 'delivered' && o.status !== 'cancelled');
   const completedOrders = orders.filter(o => o.status === 'delivered' || o.status === 'cancelled');
 
-  // Live stats based on real API orders
+  const pendingColumn = activeOrders.filter(o => o.status === 'pending');
+  const preparingColumn = activeOrders.filter(o => o.status === 'preparing');
+  const readyColumn = activeOrders.filter(o => o.status === 'ready');
+
   const totalEarnings = completedOrders
     .filter(o => o.status === 'delivered')
     .reduce((sum, o) => sum + o.total, 0);
   const totalOrdersCount = orders.length;
-  const averageRating = orders.length > 0 ? "5.0" : "0.0";
 
-  // Generate real earnings history for the last 7 days based on actual completed orders
   const earningsHistory = Array.from({ length: 7 }).map((_, i) => {
     const d = subDays(new Date(), 6 - i);
     const dateLabel = format(d, 'MMM dd');
@@ -192,9 +314,9 @@ export default function App() {
   });
 
   const renderDashboard = () => (
-    <>
-      {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+    <div className="space-y-8">
+      {/* Stats Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <StatsCard 
           label="Total Earnings" 
           value={`Rs. ${totalEarnings.toLocaleString()}`} 
@@ -208,9 +330,9 @@ export default function App() {
           color="orange"
         />
         <StatsCard 
-          label="Avg. Rating" 
-          value={averageRating} 
-          icon={Star} 
+          label="Completed Orders" 
+          value={completedOrders.filter(o => o.status === 'delivered').length} 
+          icon={CheckCircle} 
           color="amber"
         />
         <StatsCard 
@@ -221,338 +343,464 @@ export default function App() {
         />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Main Content Area */}
-        <div className="lg:col-span-2 space-y-8">
-          {/* Earnings Chart */}
-          <section className="p-6 bg-white border border-slate-200 rounded-2xl shadow-sm">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-lg font-display font-bold text-slate-900">Earnings Overview</h2>
-              <select className="text-sm font-medium text-slate-500 bg-slate-50 border-none rounded-lg px-2 py-1 focus:ring-0">
-                <option>Last 7 Days</option>
-                <option>Last 30 Days</option>
-              </select>
+      <div className="space-y-8">
+        {/* Earnings Graph */}
+        <section className="p-6 bg-slate-900 border border-slate-800/80 rounded-3xl shadow-lg relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-64 h-64 bg-orange-500/5 rounded-full blur-3xl pointer-events-none" />
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className="text-lg font-display font-bold text-white tracking-tight">Earnings Over Time</h2>
+              <p className="text-xs text-slate-400">Track your daily income</p>
             </div>
-             <EarningsChart data={earningsHistory} />
-          </section>
+            <div className="flex bg-slate-955 p-1 rounded-xl border border-slate-800">
+              <span className="text-[10px] font-bold px-3 py-1.5 rounded-lg bg-orange-500/10 text-orange-400">Last 7 Days</span>
+            </div>
+          </div>
+          <EarningsChart data={earningsHistory} />
+        </section>
 
-          {/* Orders Section */}
-          <section>
-            <div className="flex items-center justify-between mb-6">
-              <div className="flex items-center gap-6">
-                <h2 className="text-lg font-display font-bold text-slate-900">Recent Orders</h2>
-                <div className="flex bg-slate-100 p-1 rounded-xl">
-                  <button 
-                    onClick={() => setActiveTab('active')}
-                    className={`px-4 py-1.5 text-xs font-bold rounded-lg transition-all ${activeTab === 'active' ? 'bg-white text-orange-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-                  >
-                    Active ({activeOrders.length})
-                  </button>
-                  <button 
-                    onClick={() => setActiveTab('completed')}
-                    className={`px-4 py-1.5 text-xs font-bold rounded-lg transition-all ${activeTab === 'completed' ? 'bg-white text-orange-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-                  >
-                    Completed
-                  </button>
+        {/* Mini Kanban Row */}
+        <section>
+          <div className="flex items-center justify-between mb-5">
+            <div>
+              <h2 className="text-lg font-display font-bold text-white tracking-tight">Interactive Pipeline</h2>
+              <p className="text-xs text-slate-400">Advance orders by clicking actions</p>
+            </div>
+            <button 
+              onClick={() => setCurrentView('Orders')}
+              className="text-xs font-bold text-orange-500 hover:text-orange-400 flex items-center gap-1.5 px-3 py-1.5 bg-orange-500/10 rounded-xl transition-all border border-orange-500/20"
+            >
+              Expand View <ChevronRight size={14} />
+            </button>
+          </div>
+
+          {/* Kanban columns on Dashboard */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+            {/* Pending Column */}
+            <div className="p-4 rounded-2xl bg-slate-900/50 border border-slate-800 flex flex-col min-h-[300px]">
+              <div className="flex items-center justify-between mb-4 pb-2 border-b border-slate-850">
+                <div className="flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-amber-400 shadow-md shadow-amber-400/50" />
+                  <h3 className="font-bold text-xs text-slate-200 uppercase tracking-wider">New ({pendingColumn.length})</h3>
                 </div>
               </div>
-              <button 
-                onClick={() => setCurrentView('Orders')}
-                className="text-sm font-bold text-orange-600 hover:text-orange-700 flex items-center gap-1"
-              >
-                View All <ChevronRight size={16} />
-              </button>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <AnimatePresence mode="popLayout">
-                {(activeTab === 'active' ? activeOrders : completedOrders).slice(0, 4).map((order) => (
-                  <OrderCard 
-                    key={order.id} 
-                    order={order} 
-                    onStatusChange={handleStatusChange} 
-                  />
-                ))}
-              </AnimatePresence>
-            </div>
-          </section>
-        </div>
-
-        {/* Sidebar Area */}
-        <div className="space-y-8">
-          {/* Chef Profile Card */}
-          <section className="p-6 bg-white border border-slate-200 rounded-2xl shadow-sm text-center">
-            <div className="relative inline-block mb-4">
-              <img 
-                src={profile.avatar} 
-                alt={profile.name}
-                className="w-24 h-24 rounded-full border-4 border-orange-50 object-cover mx-auto"
-                referrerPolicy="no-referrer"
-              />
-              <div className="absolute bottom-0 right-0 w-6 h-6 bg-emerald-500 border-2 border-white rounded-full flex items-center justify-center text-white">
-                <Star size={12} fill="currentColor" />
+              <div className="space-y-4 flex-1 overflow-y-auto max-h-[400px]">
+                {pendingColumn.length === 0 ? (
+                  <div className="h-full flex flex-col items-center justify-center text-center py-12 text-slate-500">
+                    <ShoppingBag size={24} className="stroke-[1.5] mb-2 opacity-40" />
+                    <p className="text-[11px]">No new orders</p>
+                  </div>
+                ) : (
+                  pendingColumn.map(order => (
+                    <OrderCard 
+                      key={order.id} 
+                      order={order} 
+                      onStatusChange={handleStatusChange} 
+                      onViewDetails={setSelectedOrderForModal}
+                    />
+                  ))
+                )}
               </div>
             </div>
-            <h3 className="text-xl font-display font-bold text-slate-900 mb-1">{profile.name}</h3>
-            <p className="text-sm font-medium text-orange-600 mb-4">{profile.specialty}</p>
-            
-            <div className="flex items-center justify-center gap-1 text-slate-500 text-sm mb-6">
-              <MapPin size={14} />
-              <span>{profile.location}</span>
+
+            {/* Preparing Column */}
+            <div className="p-4 rounded-2xl bg-slate-900/50 border border-slate-800 flex flex-col min-h-[300px]">
+              <div className="flex items-center justify-between mb-4 pb-2 border-b border-slate-850">
+                <div className="flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-blue-400 shadow-md shadow-blue-400/50" />
+                  <h3 className="font-bold text-xs text-slate-200 uppercase tracking-wider">Cooking ({preparingColumn.length})</h3>
+                </div>
+              </div>
+              <div className="space-y-4 flex-1 overflow-y-auto max-h-[400px]">
+                {preparingColumn.length === 0 ? (
+                  <div className="h-full flex flex-col items-center justify-center text-center py-12 text-slate-500">
+                    <Utensils size={24} className="stroke-[1.5] mb-2 opacity-40" />
+                    <p className="text-[11px]">Nothing in cooking</p>
+                  </div>
+                ) : (
+                  preparingColumn.map(order => (
+                    <OrderCard 
+                      key={order.id} 
+                      order={order} 
+                      onStatusChange={handleStatusChange} 
+                      onViewDetails={setSelectedOrderForModal}
+                    />
+                  ))
+                )}
+              </div>
             </div>
 
-            <p className="text-sm text-slate-600 leading-relaxed mb-6 italic">
-              "{profile.bio}"
-            </p>
-
-            <button 
-              onClick={() => setCurrentView('Profile')}
-              className="w-full py-3 bg-slate-900 text-white rounded-xl font-bold text-sm hover:bg-slate-800 transition-all"
-            >
-              View Profile
-            </button>
-          </section>
-
-          {/* Quick Actions / Tips */}
-          <section className="p-6 bg-orange-500 rounded-2xl shadow-lg shadow-orange-200 text-white overflow-hidden relative">
-            <div className="relative z-10">
-              <h3 className="text-lg font-display font-bold mb-2">Chef's Tip</h3>
-              <p className="text-sm text-orange-50 leading-relaxed mb-4">
-                Updating your menu with seasonal ingredients can increase your orders by up to 25%!
-              </p>
-              <button 
-                onClick={() => setCurrentView('Menu Items')}
-                className="px-4 py-2 bg-white text-orange-600 rounded-lg font-bold text-xs hover:bg-orange-50 transition-all"
-              >
-                Update Menu
-              </button>
+            {/* Ready Column */}
+            <div className="p-4 rounded-2xl bg-slate-900/50 border border-slate-800 flex flex-col min-h-[300px]">
+              <div className="flex items-center justify-between mb-4 pb-2 border-b border-slate-850">
+                <div className="flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 shadow-md shadow-emerald-400/50" />
+                  <h3 className="font-bold text-xs text-slate-200 uppercase tracking-wider">Ready ({readyColumn.length})</h3>
+                </div>
+              </div>
+              <div className="space-y-4 flex-1 overflow-y-auto max-h-[400px]">
+                {readyColumn.length === 0 ? (
+                  <div className="h-full flex flex-col items-center justify-center text-center py-12 text-slate-500">
+                    <CheckCircle size={24} className="stroke-[1.5] mb-2 opacity-40" />
+                    <p className="text-[11px]">Ready list empty</p>
+                  </div>
+                ) : (
+                  readyColumn.map(order => (
+                    <OrderCard 
+                      key={order.id} 
+                      order={order} 
+                      onStatusChange={handleStatusChange} 
+                      onViewDetails={setSelectedOrderForModal}
+                    />
+                  ))
+                )}
+              </div>
             </div>
-            <Utensils className="absolute -bottom-4 -right-4 text-white/10 w-32 h-32 rotate-12" />
-          </section>
-        </div>
+          </div>
+        </section>
       </div>
-    </>
+    </div>
   );
 
   const renderOrders = () => (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-display font-bold text-slate-900">Order Management</h2>
-        <div className="flex bg-slate-100 p-1 rounded-xl">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h2 className="text-xl font-display font-bold text-white tracking-tight">Pipeline Control</h2>
+          <p className="text-xs text-slate-400">Complete kitchen workflow pipeline</p>
+        </div>
+        <div className="flex bg-slate-900/60 border border-slate-800 p-1 rounded-xl self-start">
           <button 
             onClick={() => setActiveTab('active')}
-            className={`px-6 py-2 text-sm font-bold rounded-lg transition-all ${activeTab === 'active' ? 'bg-white text-orange-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+            className={cn(
+              "px-5 py-2 text-xs font-bold rounded-lg transition-all",
+              activeTab === 'active' ? "bg-orange-500 text-white shadow-md shadow-orange-500/20" : "text-slate-400 hover:text-white"
+            )}
           >
-            Active ({activeOrders.length})
+            Active Pipeline ({activeOrders.length})
           </button>
           <button 
             onClick={() => setActiveTab('completed')}
-            className={`px-6 py-2 text-sm font-bold rounded-lg transition-all ${activeTab === 'completed' ? 'bg-white text-orange-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+            className={cn(
+              "px-5 py-2 text-xs font-bold rounded-lg transition-all",
+              activeTab === 'completed' ? "bg-orange-500 text-white shadow-md shadow-orange-500/20" : "text-slate-400 hover:text-white"
+            )}
           >
-            History
+            History Log ({completedOrders.length})
           </button>
         </div>
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        <AnimatePresence mode="popLayout">
-          {(activeTab === 'active' ? activeOrders : completedOrders).map((order) => (
-            <OrderCard 
-              key={order.id} 
-              order={order} 
-              onStatusChange={handleStatusChange} 
-            />
-          ))}
-        </AnimatePresence>
-      </div>
+
+      {activeTab === 'active' ? (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {/* Pending Column */}
+          <div className="p-5 rounded-3xl bg-slate-900/40 border border-slate-800/80 flex flex-col min-h-[500px]">
+            <div className="flex items-center justify-between mb-5 pb-2.5 border-b border-slate-800">
+              <div className="flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-amber-400 shadow-md shadow-amber-400/30" />
+                <h3 className="font-bold text-xs text-slate-200 tracking-wider uppercase">New Orders ({pendingColumn.length})</h3>
+              </div>
+            </div>
+            <div className="space-y-4 flex-grow overflow-y-auto max-h-[600px]">
+              {pendingColumn.length === 0 ? (
+                <div className="h-full flex flex-col items-center justify-center text-center py-20 text-slate-500">
+                  <ShoppingBag size={32} className="stroke-[1.5] mb-2 opacity-35" />
+                  <p className="text-xs">No pending orders</p>
+                </div>
+              ) : (
+                pendingColumn.map(order => (
+                  <OrderCard 
+                    key={order.id} 
+                    order={order} 
+                    onStatusChange={handleStatusChange} 
+                    onViewDetails={setSelectedOrderForModal}
+                  />
+                ))
+              )}
+            </div>
+          </div>
+
+          {/* Preparing Column */}
+          <div className="p-5 rounded-3xl bg-slate-900/40 border border-slate-800/80 flex flex-col min-h-[500px]">
+            <div className="flex items-center justify-between mb-5 pb-2.5 border-b border-slate-800">
+              <div className="flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-blue-400 shadow-md shadow-blue-400/30" />
+                <h3 className="font-bold text-xs text-slate-200 tracking-wider uppercase">Preparing ({preparingColumn.length})</h3>
+              </div>
+            </div>
+            <div className="space-y-4 flex-grow overflow-y-auto max-h-[600px]">
+              {preparingColumn.length === 0 ? (
+                <div className="h-full flex flex-col items-center justify-center text-center py-20 text-slate-500">
+                  <Utensils size={32} className="stroke-[1.5] mb-2 opacity-35" />
+                  <p className="text-xs">Kitchen is idle</p>
+                </div>
+              ) : (
+                preparingColumn.map(order => (
+                  <OrderCard 
+                    key={order.id} 
+                    order={order} 
+                    onStatusChange={handleStatusChange} 
+                    onViewDetails={setSelectedOrderForModal}
+                  />
+                ))
+              )}
+            </div>
+          </div>
+
+          {/* Ready Column */}
+          <div className="p-5 rounded-3xl bg-slate-900/40 border border-slate-800/80 flex flex-col min-h-[500px]">
+            <div className="flex items-center justify-between mb-5 pb-2.5 border-b border-slate-800">
+              <div className="flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 shadow-md shadow-emerald-400/30" />
+                <h3 className="font-bold text-xs text-slate-200 tracking-wider uppercase">Ready / Done ({readyColumn.length})</h3>
+              </div>
+            </div>
+            <div className="space-y-4 flex-grow overflow-y-auto max-h-[600px]">
+              {readyColumn.length === 0 ? (
+                <div className="h-full flex flex-col items-center justify-center text-center py-20 text-slate-500">
+                  <CheckCircle size={32} className="stroke-[1.5] mb-2 opacity-35" />
+                  <p className="text-xs">No items ready for pickup</p>
+                </div>
+              ) : (
+                readyColumn.map(order => (
+                  <OrderCard 
+                    key={order.id} 
+                    order={order} 
+                    onStatusChange={handleStatusChange} 
+                    onViewDetails={setSelectedOrderForModal}
+                  />
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {completedOrders.length === 0 ? (
+            <div className="col-span-full py-20 text-center text-slate-500 bg-slate-900 border border-slate-800 rounded-3xl">
+              <ShoppingBag size={40} className="mx-auto stroke-[1.5] mb-3 opacity-30" />
+              <h3 className="font-bold text-sm text-slate-300">No completed orders yet</h3>
+            </div>
+          ) : (
+            completedOrders.map(order => (
+              <OrderCard 
+                key={order.id} 
+                order={order} 
+                onStatusChange={handleStatusChange} 
+                onViewDetails={setSelectedOrderForModal}
+              />
+            ))
+          )}
+        </div>
+      )}
     </div>
   );
 
   const renderMenuItems = () => (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-display font-bold text-slate-900">Menu Items</h2>
-        <button className="flex items-center gap-2 px-4 py-2 bg-orange-500 text-white rounded-xl font-bold text-sm hover:bg-orange-600 transition-all shadow-lg shadow-orange-200">
-          <Plus size={18} />
-          Add New Item
+        <div>
+          <h2 className="text-xl font-display font-bold text-white tracking-tight">Dish Catalog</h2>
+          <p className="text-xs text-slate-400">Your dishes listed on the platform</p>
+        </div>
+        <button 
+          onClick={() => setIsAddItemModalOpen(true)}
+          className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-orange-500 to-amber-500 text-white rounded-2xl font-bold text-xs hover:shadow-lg hover:shadow-orange-500/25 active:scale-95 transition-all"
+        >
+          <Plus size={16} />
+          Add Dish
         </button>
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {[
-          { name: 'Chicken Enchiladas', price: 18.50, category: 'Main Course', image: 'https://picsum.photos/seed/enchiladas/400/300' },
-          { name: 'Beef Tacos', price: 16.00, category: 'Main Course', image: 'https://picsum.photos/seed/tacos/400/300' },
-          { name: 'Guacamole & Chips', price: 8.50, category: 'Appetizer', image: 'https://picsum.photos/seed/guac/400/300' },
-          { name: 'Horchata', price: 4.50, category: 'Beverage', image: 'https://picsum.photos/seed/horchata/400/300' },
-        ].map((item, idx) => (
-          <div key={idx} className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-all">
-            <img src={item.image} alt={item.name} className="w-full h-48 object-cover" referrerPolicy="no-referrer" />
-            <div className="p-4">
-              <div className="flex justify-between items-start mb-2">
-                <div>
-                  <h4 className="font-bold text-slate-900">{item.name}</h4>
-                  <p className="text-xs text-slate-500">{item.category}</p>
-                </div>
-                <span className="font-bold text-orange-600">Rs. {item.price.toLocaleString()}</span>
+
+      {menuLoading ? (
+        <div className="py-24 text-center text-slate-500">
+          <div className="w-8 h-8 border-2 border-orange-500 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+          <p className="text-xs">Loading your dishes...</p>
+        </div>
+      ) : menuItems.length === 0 ? (
+        <div className="py-24 text-center text-slate-500 bg-slate-900/50 border border-slate-800 rounded-3xl">
+          <Utensils size={36} className="mx-auto stroke-[1.5] mb-3 opacity-30" />
+          <h3 className="font-bold text-sm text-slate-300 mb-1">No dishes yet</h3>
+          <p className="text-xs">Add your first dish to start receiving orders</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {menuItems.map((item) => (
+            <div key={item.id} className="bg-slate-900 border border-slate-800 rounded-3xl overflow-hidden shadow-lg hover:border-slate-700/80 transition-all flex flex-col group">
+              <div className="relative h-44 w-full overflow-hidden bg-slate-950">
+                {item.imageUrl ? (
+                  <img 
+                    src={item.imageUrl} 
+                    alt={item.name} 
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
+                    referrerPolicy="no-referrer" 
+                  />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center">
+                    <Utensils size={36} className="text-slate-700" />
+                  </div>
+                )}
+                <span className="absolute top-3 left-3 px-2.5 py-1 bg-slate-900/90 text-orange-400 text-[10px] font-bold tracking-wider rounded-lg border border-slate-850 uppercase">
+                  {item.category}
+                </span>
               </div>
-              <div className="flex gap-2 mt-4">
-                <button className="flex-1 py-2 bg-slate-100 text-slate-700 rounded-lg text-xs font-bold hover:bg-slate-200 transition-all">Edit</button>
-                <button className="flex-1 py-2 bg-red-50 text-red-600 rounded-lg text-xs font-bold hover:bg-red-100 transition-all">Delete</button>
+              <div className="p-5 flex-1 flex flex-col justify-between">
+                <div>
+                  <div className="flex justify-between items-start gap-2 mb-2">
+                    <h4 className="font-bold text-base text-white tracking-tight leading-tight line-clamp-1">{item.name}</h4>
+                    <span className="font-mono text-orange-400 font-bold text-sm whitespace-nowrap">Rs.{item.price.toLocaleString()}</span>
+                  </div>
+                  <p className="text-xs text-slate-400 leading-relaxed line-clamp-2 italic mb-4">{item.description || 'No description'}</p>
+                </div>
+                <div className="pt-3 border-t border-slate-850 flex items-center justify-end">
+                  <button 
+                    onClick={() => handleDeleteMenuItem(item.id)}
+                    className="p-2 bg-rose-500/10 border border-rose-500/20 text-rose-400 hover:text-white hover:bg-rose-500 rounded-xl transition-all"
+                    title="Delete dish"
+                  >
+                    <Trash2 size={13} />
+                  </button>
+                </div>
               </div>
             </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 
   const renderSettings = () => (
-    <div className="max-w-4xl mx-auto space-y-8">
-      <div className="bg-white border border-slate-200 rounded-3xl p-8 shadow-sm">
-        <h3 className="text-xl font-display font-bold text-slate-900 mb-6">Account Settings</h3>
+    <div className="max-w-3xl mx-auto space-y-8">
+      <div className="bg-slate-900 border border-slate-800 rounded-3xl p-8 shadow-lg">
+        <h3 className="text-lg font-display font-bold text-white tracking-tight mb-5 pb-3 border-b border-slate-800">Account Credentials</h3>
         <form onSubmit={handleProfileUpdate} className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-2">
-              <label className="text-sm font-bold text-slate-700">Full Name</label>
-              <input name="name" type="text" defaultValue={profile.name} className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500" />
+              <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Full Name</label>
+              <input name="name" type="text" defaultValue={profile.name} className="w-full px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl focus:outline-none focus:ring-1 focus:ring-orange-500 focus:border-orange-500 text-sm text-slate-200" />
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-bold text-slate-700">Email Address</label>
-              <input type="email" defaultValue={profile.email} className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500" />
+              <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Email Address</label>
+              <input type="email" defaultValue={profile.email} className="w-full px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl focus:outline-none focus:ring-1 focus:ring-orange-500 focus:border-orange-500 text-sm text-slate-200" />
             </div>
           </div>
           <div className="space-y-2">
-            <label className="text-sm font-bold text-slate-700">Kitchen Location</label>
-            <input name="location" type="text" defaultValue={profile.location} className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500" />
+            <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Kitchen Address</label>
+            <input name="location" type="text" defaultValue={profile.location} className="w-full px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl focus:outline-none focus:ring-1 focus:ring-orange-500 focus:border-orange-500 text-sm text-slate-200" />
           </div>
           <div className="space-y-2">
-            <label className="text-sm font-bold text-slate-700">Avatar URL</label>
-            <input name="avatar" type="text" defaultValue={profile.avatar} className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500" />
+            <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Profile Avatar Image Link</label>
+            <input name="avatar" type="text" defaultValue={profile.avatar} className="w-full px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl focus:outline-none focus:ring-1 focus:ring-orange-500 focus:border-orange-500 text-sm text-slate-200" />
           </div>
           
-          {/* Hidden fields to maintain other profile data when updating from settings */}
           <input type="hidden" name="specialty" value={profile.specialty} />
           <input type="hidden" name="bio" value={profile.bio} />
 
-          <div className="pt-6 border-t border-slate-100 flex justify-end gap-4">
-            <button type="button" className="px-6 py-2 border border-slate-200 text-slate-600 rounded-xl font-bold hover:bg-slate-50 transition-all">Cancel</button>
-            <button type="submit" className="px-6 py-2 bg-orange-500 text-white rounded-xl font-bold hover:bg-orange-600 transition-all shadow-lg shadow-orange-200">Save Changes</button>
+          <div className="pt-4 border-t border-slate-800 flex justify-end gap-3">
+            <button type="submit" className="px-5 py-2.5 bg-gradient-to-r from-orange-500 to-amber-500 text-white rounded-xl font-bold text-xs hover:shadow-lg hover:shadow-orange-500/20 transition-all active:scale-95">Save Profile Details</button>
           </div>
         </form>
       </div>
 
-      <div className="bg-white border border-slate-200 rounded-3xl p-8 shadow-sm">
-        <h3 className="text-xl font-display font-bold text-slate-900 mb-6">Security</h3>
+      <div className="bg-slate-900 border border-slate-800 rounded-3xl p-8 shadow-lg">
+        <h3 className="text-lg font-display font-bold text-white tracking-tight mb-5 pb-3 border-b border-slate-800">Security & Alerts</h3>
         <div className="space-y-4">
-          <button className="w-full flex items-center justify-between p-4 bg-slate-50 rounded-2xl hover:bg-slate-100 transition-all group">
-            <div className="flex items-center gap-4">
-              <div className="p-2 bg-white rounded-xl text-slate-600 group-hover:text-orange-600 transition-colors">
-                <Settings size={20} />
-              </div>
-              <div className="text-left">
-                <p className="font-bold text-slate-900">Change Password</p>
-                <p className="text-xs text-slate-500">Update your account password</p>
-              </div>
+          <div className="flex items-center justify-between p-4 bg-slate-950/40 border border-slate-800 rounded-2xl">
+            <div>
+              <p className="text-sm font-bold text-white">SMS Notification Dispatcher</p>
+              <p className="text-[11px] text-slate-500">Dispatch messages automatically to customers on state shift</p>
             </div>
-            <ChevronRight size={20} className="text-slate-400" />
-          </button>
-          <button className="w-full flex items-center justify-between p-4 bg-slate-50 rounded-2xl hover:bg-slate-100 transition-all group">
-            <div className="flex items-center gap-4">
-              <div className="p-2 bg-white rounded-xl text-slate-600 group-hover:text-orange-600 transition-colors">
-                <Bell size={20} />
-              </div>
-              <div className="text-left">
-                <p className="font-bold text-slate-900">Notification Preferences</p>
-                <p className="text-xs text-slate-500">Manage how you receive alerts</p>
-              </div>
+            <button className="px-3.5 py-1.5 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-xl text-xs font-bold">Enabled</button>
+          </div>
+          <div className="flex items-center justify-between p-4 bg-slate-950/40 border border-slate-800 rounded-2xl">
+            <div>
+              <p className="text-sm font-bold text-white">Audio Dispatch Alerts</p>
+              <p className="text-[11px] text-slate-500">Sound audible bells when simulated incoming orders trigger</p>
             </div>
-            <ChevronRight size={20} className="text-slate-400" />
-          </button>
+            <button className="px-3.5 py-1.5 bg-slate-800 border border-slate-700 text-slate-400 rounded-xl text-xs font-bold">Muted</button>
+          </div>
         </div>
       </div>
     </div>
   );
 
   const renderProfile = () => (
-    <div className="max-w-4xl mx-auto space-y-8">
-      <div className="bg-white border border-slate-200 rounded-3xl p-8 shadow-sm">
+    <div className="max-w-3xl mx-auto">
+      <div className="bg-slate-900 border border-slate-800 rounded-3xl p-8 shadow-lg relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-80 h-80 bg-orange-500/5 rounded-full blur-3xl pointer-events-none" />
+        
         {!isEditingProfile ? (
-          <>
-            <div className="flex flex-col md:flex-row items-center gap-8 mb-8">
+          <div className="space-y-8">
+            <div className="flex flex-col md:flex-row items-center gap-8 pb-6 border-b border-slate-800">
               <img 
                 src={profile.avatar} 
                 alt={profile.name}
-                className="w-32 h-32 rounded-full border-4 border-orange-50 object-cover"
+                className="w-28 h-28 rounded-full border-4 border-slate-800 object-cover shadow-xl"
                 referrerPolicy="no-referrer"
               />
-              <div className="text-center md:text-left flex-1">
-                <h2 className="text-3xl font-display font-bold text-slate-900 mb-2">{profile.name}</h2>
-                <p className="text-lg font-medium text-orange-600 mb-4">{profile.specialty}</p>
-                <div className="flex flex-wrap justify-center md:justify-start gap-4">
-                  <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-50 rounded-full text-sm text-slate-600">
-                    <MapPin size={16} className="text-orange-500" />
+              <div className="text-center md:text-left flex-1 space-y-2">
+                <h2 className="text-2xl font-display font-bold text-white tracking-tight">{profile.name}</h2>
+                <p className="text-sm font-semibold text-orange-400">{profile.specialty}</p>
+                <div className="flex flex-wrap justify-center md:justify-start gap-3 pt-1">
+                  <span className="flex items-center gap-1.5 px-3 py-1 bg-slate-950 border border-slate-850 rounded-full text-[11px] text-slate-400 font-semibold">
+                    <MapPin size={12} className="text-orange-500" />
                     {profile.location}
-                  </div>
-                   <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-50 rounded-full text-sm text-slate-600">
-                    <Star size={16} className="text-amber-500" fill="currentColor" />
-                    {averageRating} Rating
-                  </div>
-                  <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-50 rounded-full text-sm text-slate-600">
-                    <ShoppingBag size={16} className="text-blue-500" />
-                    {totalOrdersCount} Orders
-                  </div>
+                  </span>
+                  <span className="flex items-center gap-1.5 px-3 py-1 bg-slate-950 border border-slate-850 rounded-full text-[11px] text-slate-400 font-semibold">
+                    <CheckCircle size={12} className="text-emerald-500" />
+                    {completedOrders.filter(o => o.status === 'delivered').length} Delivered
+                  </span>
                 </div>
               </div>
               <button 
                 onClick={() => setIsEditingProfile(true)}
-                className="px-6 py-3 bg-orange-500 text-white rounded-2xl font-bold hover:bg-orange-600 transition-all shadow-lg shadow-orange-200"
+                className="px-5 py-2.5 bg-slate-800 border border-slate-700 hover:border-slate-600 text-slate-200 hover:text-white rounded-xl text-xs font-bold transition-all"
               >
-                Edit Profile
+                Modify bio
               </button>
             </div>
-            <div className="space-y-4">
-              <h3 className="text-xl font-display font-bold text-slate-900">About Me</h3>
-              <p className="text-slate-600 leading-relaxed text-lg">
-                {profile.bio}
+            
+            <div className="space-y-3">
+              <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider">Kitchen bio</h3>
+              <p className="text-slate-300 leading-relaxed text-sm italic font-medium">
+                "{profile.bio}"
               </p>
             </div>
-          </>
+          </div>
         ) : (
           <form onSubmit={handleProfileUpdate} className="space-y-6">
-            <h3 className="text-2xl font-display font-bold text-slate-900 mb-6">Edit Your Profile</h3>
+            <h3 className="text-lg font-display font-bold text-white mb-6">Modify Specialty & bio</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-2">
-                <label className="text-sm font-bold text-slate-700">Full Name</label>
-                <input name="name" type="text" defaultValue={profile.name} required className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500" />
+                <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Kitchen Specialty</label>
+                <input name="specialty" type="text" defaultValue={profile.specialty} required className="w-full px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl focus:outline-none focus:ring-1 focus:ring-orange-500 focus:border-orange-500 text-sm text-slate-200" />
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-bold text-slate-700">Specialty</label>
-                <input name="specialty" type="text" defaultValue={profile.specialty} required className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500" />
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-bold text-slate-700">Location</label>
-                <input name="location" type="text" defaultValue={profile.location} required className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500" />
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-bold text-slate-700">Avatar URL</label>
-                <input name="avatar" type="text" defaultValue={profile.avatar} required className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500" />
+                <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Display Location</label>
+                <input name="location" type="text" defaultValue={profile.location} required className="w-full px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl focus:outline-none focus:ring-1 focus:ring-orange-500 focus:border-orange-500 text-sm text-slate-200" />
               </div>
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-bold text-slate-700">Bio</label>
-              <textarea name="bio" rows={4} defaultValue={profile.bio} required className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500"></textarea>
+              <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Bio description</label>
+              <textarea name="bio" rows={4} defaultValue={profile.bio} required className="w-full px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl focus:outline-none focus:ring-1 focus:ring-orange-500 focus:border-orange-500 text-sm text-slate-200" />
             </div>
-            <div className="flex justify-end gap-4 pt-4">
+            
+            <input type="hidden" name="name" value={profile.name} />
+            <input type="hidden" name="avatar" value={profile.avatar} />
+
+            <div className="flex justify-end gap-3 pt-4 border-t border-slate-800">
               <button 
                 type="button"
                 onClick={() => setIsEditingProfile(false)}
-                className="px-6 py-2 border border-slate-200 text-slate-600 rounded-xl font-bold hover:bg-slate-50 transition-all"
+                className="px-4 py-2 border border-slate-700 text-slate-400 rounded-xl text-xs font-bold hover:bg-slate-850"
               >
                 Cancel
               </button>
               <button 
                 type="submit"
-                className="px-6 py-2 bg-orange-500 text-white rounded-xl font-bold hover:bg-orange-600 transition-all shadow-lg shadow-orange-200"
+                className="px-5 py-2 bg-gradient-to-r from-orange-500 to-amber-500 text-white rounded-xl text-xs font-bold"
               >
-                Save Changes
+                Save
               </button>
             </div>
           </form>
@@ -561,19 +809,19 @@ export default function App() {
     </div>
   );
 
-
   return (
-    <div className="flex min-h-screen bg-slate-50 font-sans relative overflow-hidden">
+    <div className="chef-dashboard flex min-h-screen relative overflow-hidden bg-slate-950">
       <Sidebar 
         activeTab={currentView} 
         onTabChange={setCurrentView} 
         onLogout={handleLogout} 
         isOpen={isSidebarOpen}
         onClose={() => setIsSidebarOpen(false)}
+        profile={profile}
       />
       
       <main className={cn(
-        "flex-1 p-8 overflow-y-auto transition-all duration-300",
+        "flex-1 p-6 md:p-8 overflow-y-auto transition-all duration-300 lg:pl-8 lg:pr-8",
         isSidebarOpen ? "lg:ml-64" : "ml-0"
       )}>
         <NewOrderToast 
@@ -582,47 +830,123 @@ export default function App() {
           orderId={newOrderId} 
         />
 
-        {/* Header */}
+        {/* Dynamic Modal detailed view */}
+        <AnimatePresence>
+          {selectedOrderForModal && (
+            <OrderDetailsModal 
+              order={selectedOrderForModal}
+              onClose={() => setSelectedOrderForModal(null)}
+              onStatusChange={handleStatusChange}
+            />
+          )}
+        </AnimatePresence>
+
+        {/* Add Food Item Modal */}
+        <AnimatePresence>
+          {isAddItemModalOpen && (
+            <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+              <motion.div 
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                onClick={() => setIsAddItemModalOpen(false)}
+                className="absolute inset-0 bg-slate-955/80 backdrop-blur-sm"
+              />
+              <motion.div 
+                initial={{ scale: 0.95, y: 20, opacity: 0 }}
+                animate={{ scale: 1, y: 0, opacity: 1 }}
+                exit={{ scale: 0.95, y: 20, opacity: 0 }}
+                className="relative w-full max-w-md bg-slate-900 border border-slate-800 rounded-3xl overflow-hidden shadow-2xl z-10"
+              >
+                <div className="p-6 pb-3 border-b border-slate-850 flex items-center justify-between">
+                  <h3 className="text-base font-bold text-white">Add New Dish</h3>
+                  <button onClick={() => setIsAddItemModalOpen(false)} className="p-1.5 text-slate-400 hover:text-white rounded-lg">
+                    <X size={16} />
+                  </button>
+                </div>
+                <form onSubmit={handleAddNewItem} className="p-6 space-y-4">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Dish Name</label>
+                    <input name="name" type="text" required placeholder="e.g. Jaffna Crab Curry" className="w-full px-3.5 py-2 bg-slate-950 border border-slate-800 rounded-xl focus:outline-none text-xs text-slate-200" />
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Price (LKR)</label>
+                      <input name="price" type="number" required placeholder="1400" className="w-full px-3.5 py-2 bg-slate-950 border border-slate-800 rounded-xl focus:outline-none text-xs text-slate-200" />
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Category</label>
+                    <select name="category" required className="w-full px-3.5 py-2 bg-slate-950 border border-slate-800 rounded-xl focus:outline-none text-xs text-slate-200">
+                      <option value="">— Select a category —</option>
+                      {categories.map(cat => (
+                        <option key={cat.id} value={cat.id}>{cat.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Image URL</label>
+                    <input name="imageUrl" type="text" placeholder="https://unsplash.com/..." className="w-full px-3.5 py-2 bg-slate-950 border border-slate-800 rounded-xl focus:outline-none text-xs text-slate-200" />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Short description</label>
+                    <textarea name="description" rows={3} placeholder="Describe ingredients, spice levels..." className="w-full px-3.5 py-2 bg-slate-950 border border-slate-800 rounded-xl focus:outline-none text-xs text-slate-200" />
+                  </div>
+                  <div className="pt-4 flex justify-end gap-3">
+                    <button type="button" onClick={() => setIsAddItemModalOpen(false)} className="px-4 py-2 border border-slate-700 text-slate-400 rounded-xl text-xs font-bold">
+                      Cancel
+                    </button>
+                    <button type="submit" className="px-5 py-2 bg-gradient-to-r from-orange-500 to-amber-500 text-white rounded-xl text-xs font-bold">
+                      Add to Menu
+                    </button>
+                  </div>
+                </form>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>
+
+        {/* Global Header */}
         <header className="flex items-center justify-between mb-8">
           <div className="flex items-center gap-4">
             {!isSidebarOpen && (
               <button 
                 onClick={() => setIsSidebarOpen(true)}
-                className="p-2 bg-white border border-slate-200 rounded-xl text-slate-600 hover:text-orange-500 hover:border-orange-200 transition-all"
+                className="p-2.5 bg-slate-900 border border-slate-800 rounded-xl text-slate-400 hover:text-white hover:border-slate-700 transition-all"
               >
-                <Menu size={24} />
+                <Menu size={20} />
               </button>
             )}
             <div>
-              <h1 className="text-3xl font-display font-bold text-slate-900 tracking-tight">
+              <h1 className="text-2xl font-display font-bold text-white tracking-tight">
                 {currentView}
               </h1>
-              <p className="text-slate-500 font-medium">
-                {currentView === 'Dashboard' ? `Welcome back, ${profile.name.split(' ')[0]}!` : `Manage your ${currentView.toLowerCase()} here.`}
+              <p className="text-xs text-slate-500 font-medium">
+                {currentView === 'Dashboard' ? `Welcome back to the kitchen, ${profile.name.split(' ')[0]}!` : `Manage your ${currentView.toLowerCase()} catalog.`}
               </p>
             </div>
           </div>
           <div className="flex items-center gap-4">
-            <div className="relative group">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-orange-500 transition-colors" size={18} />
+            <div className="relative hidden md:block">
+              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
               <input 
                 type="text" 
-                placeholder="Search..." 
-                className="pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all w-64"
+                placeholder="Search catalog, order numbers..." 
+                className="pl-10 pr-4 py-2 bg-slate-900 border border-slate-800 rounded-xl text-xs focus:outline-none focus:ring-1 focus:ring-orange-500 text-slate-200 w-60"
               />
             </div>
-            <button className="p-2 bg-white border border-slate-200 rounded-xl text-slate-500 hover:text-orange-500 hover:border-orange-200 transition-all relative">
-              <Bell size={20} />
-              <span className="absolute top-2 right-2 w-2 h-2 bg-orange-500 rounded-full border-2 border-white"></span>
+            <button className="p-2.5 bg-slate-900 border border-slate-800 rounded-xl text-slate-400 hover:text-white hover:border-slate-700 transition-all relative">
+              <Bell size={18} />
+              <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-orange-500 rounded-full border-2 border-slate-950"></span>
             </button>
           </div>
         </header>
 
         <motion.div
           key={currentView}
-          initial={{ opacity: 0, x: 20 }}
+          initial={{ opacity: 0, x: 10 }}
           animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.3 }}
+          transition={{ duration: 0.25 }}
         >
           {currentView === 'Dashboard' && renderDashboard()}
           {currentView === 'Orders' && renderOrders()}
@@ -634,4 +958,3 @@ export default function App() {
     </div>
   );
 }
-
