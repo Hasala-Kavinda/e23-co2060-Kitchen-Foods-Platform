@@ -23,14 +23,9 @@ export const AdminLogin = () => {
       const response = await adminApi.login(email, password);
       login(response.token, response.user);
       navigate("/admin/dashboard", { replace: true });
-    } catch {
-      setError(
-        "Unable to authenticate with server. Using fallback demo access.",
-      );
-
-      // Fallback keeps UI testable until endpoint is available.
-      login("mock-admin-token", { email });
-      navigate("/admin/dashboard", { replace: true });
+    } catch (err: any) {
+      const errMsg = err.response?.data?.error || err.message || "Unable to authenticate with server.";
+      setError(errMsg);
     } finally {
       setIsLoading(false);
     }

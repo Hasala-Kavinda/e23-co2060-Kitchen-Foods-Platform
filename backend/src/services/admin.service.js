@@ -5,10 +5,11 @@ import {
   createUserService,
   deleteUserByIdService,
   getAllUsersService,
+  getUserByEmailService,
   updateUserByIdService,
 } from "./user.service.js";
 
-const VALID_ORDER_STATUSES = new Set(["Pending", "Preparing", "Ready", "Completed", "Cancelled", "Delivered", "Quoted", "Paid"]);
+const VALID_ORDER_STATUSES = new Set(["Pending", "Preparing", "Ready", "Delivered", "Cancelled", "Quoted", "Paid", "Completed"]);
 
 export const getStatsService = async () => {
   const [userCount, chefCount, orderCount, foodCount] = await Promise.all([
@@ -66,6 +67,13 @@ export const createUserByAdminService = async ({
   password,
   role,
 }) => {
+  const existingUser = await getUserByEmailService(email);
+  if (existingUser) {
+    const err = new Error("Email already exists");
+    err.code = "EMAIL_EXISTS";
+    throw err;
+  }
+
   const passwordHash = await bcrypt.hash(password, 10);
   return createUserService(full_name, email, passwordHash, role);
 };

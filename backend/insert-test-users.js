@@ -22,6 +22,12 @@ const testUsers = [
     password: "12345678",
     role: "Admin",
   },
+  {
+    full_name: "Kitchen Foods Admin",
+    email: "admin@kitchenfoods.lk",
+    password: "password123",
+    role: "Admin",
+  },
 ];
 
 async function insertTestUsers() {

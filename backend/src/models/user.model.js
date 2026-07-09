@@ -1,4 +1,5 @@
 import pool from "../config/db.js";
+import { v4 as uuidv4 } from "uuid";
 
 class User {
   constructor(uid, full_name, email, role, password_hash = null) {
@@ -58,8 +59,8 @@ class User {
       tableName = "admin";
     }
     const result = await pool.query(
-      `INSERT INTO ${tableName} (uid, full_name, email, password_hash) VALUES (gen_random_uuid(), $1, $2, $3) RETURNING uid, full_name, email, role`,
-      [full_name, email, password_hash],
+      `INSERT INTO ${tableName} (uid, full_name, email, password_hash, role) VALUES ($1, $2, $3, $4, $5) RETURNING uid, full_name, email, role`,
+      [uuidv4(), full_name, email, password_hash, role],
     );
     const r = result.rows[0];
     return new User(r.uid, r.full_name, r.email, r.role);
@@ -67,8 +68,8 @@ class User {
 
   static async updateById(uid, full_name, email, role) {
     let result = await pool.query(
-      "UPDATE users SET full_name=$1, email=$2 WHERE uid=$3 RETURNING uid, full_name, email, role",
-      [full_name, email, uid],
+      "UPDATE users SET full_name=$1, email=$2, role=$4 WHERE uid=$3 RETURNING uid, full_name, email, role",
+      [full_name, email, uid, role],
     );
     if (result.rows[0]) {
       const r = result.rows[0];
@@ -76,8 +77,8 @@ class User {
     }
 
     result = await pool.query(
-      "UPDATE chefs SET full_name=$1, email=$2 WHERE uid=$3 RETURNING uid, full_name, email, role",
-      [full_name, email, uid],
+      "UPDATE chefs SET full_name=$1, email=$2, role=$4 WHERE uid=$3 RETURNING uid, full_name, email, role",
+      [full_name, email, uid, role],
     );
     if (result.rows[0]) {
       const r = result.rows[0];
@@ -85,8 +86,8 @@ class User {
     }
 
     result = await pool.query(
-      "UPDATE admin SET full_name=$1, email=$2 WHERE uid=$3 RETURNING uid, full_name, email, role",
-      [full_name, email, uid],
+      "UPDATE admin SET full_name=$1, email=$2, role=$4 WHERE uid=$3 RETURNING uid, full_name, email, role",
+      [full_name, email, uid, role],
     );
     if (result.rows[0]) {
       const r = result.rows[0];

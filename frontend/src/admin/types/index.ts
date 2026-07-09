@@ -1,5 +1,13 @@
 export type UserRole = 'Admin' | 'Chef' | 'Customer'
-export type OrderStatus = 'Pending' | 'Quoted' | 'Paid' | 'Completed'
+export type OrderStatus =
+  | 'Pending'
+  | 'Preparing'
+  | 'Ready'
+  | 'Delivered'
+  | 'Cancelled'
+  | 'Quoted'
+  | 'Paid'
+  | 'Completed'
 
 export interface AdminUser {
   email: string
