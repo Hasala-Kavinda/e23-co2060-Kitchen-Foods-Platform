@@ -8,17 +8,20 @@ const __dirname = path.dirname(__filename);
 
 export const initDb = async () => {
   try {
-    const schemaPath = path.resolve(__dirname, "../../database/01_schema.sql");
-    const seedPath = path.resolve(__dirname, "../../database/02_seed.sql");
+    await pool.query("DROP SCHEMA public CASCADE");
+    await pool.query("CREATE SCHEMA public");
+    await pool.query("GRANT ALL ON SCHEMA public TO PUBLIC");
+    console.log("Database wiped");
 
-    const schema = fs.readFileSync(schemaPath, "utf8");
-    await pool.query(schema);
-    console.log("Database schema applied");
+    const dbDir = path.resolve(__dirname, "../../database");
+    const files = fs.readdirSync(dbDir)
+      .filter(f => f.endsWith(".sql"))
+      .sort();
 
-    if (fs.existsSync(seedPath)) {
-      const seed = fs.readFileSync(seedPath, "utf8");
-      await pool.query(seed);
-      console.log("Seed data applied");
+    for (const file of files) {
+      const sql = fs.readFileSync(path.join(dbDir, file), "utf8");
+      await pool.query(sql);
+      console.log(`Executed ${file}`);
     }
   } catch (err) {
     console.error("Database initialization error:", err.message);
