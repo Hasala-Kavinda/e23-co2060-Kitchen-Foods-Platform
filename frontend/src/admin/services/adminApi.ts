@@ -32,7 +32,10 @@ instance.interceptors.request.use((config) => {
 instance.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error?.response?.status === 401 && unauthorizedHandler) {
+    if (
+      (error?.response?.status === 401 || error?.response?.status === 403) &&
+      unauthorizedHandler
+    ) {
       unauthorizedHandler()
     }
 
@@ -174,7 +177,6 @@ export const adminApi = {
     password: string
     role: UserRole
   }) {
-    // TODO: Wire up Axios call here (POST /users)
     const response = await instance.post('/users', payload)
 
     return response.data as User

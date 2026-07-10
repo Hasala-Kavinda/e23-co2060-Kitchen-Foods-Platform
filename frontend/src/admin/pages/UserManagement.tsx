@@ -20,6 +20,8 @@ export const UserManagement = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [formState, setFormState] = useState(initialForm);
+  const [error, setError] = useState<string | null>(null);
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
   const modalTitle = useMemo(
     () => (editingUser ? "Edit User" : "Add New User"),
@@ -29,13 +31,16 @@ export const UserManagement = () => {
   useEffect(() => {
     const loadUsers = async () => {
       setLoading(true);
+      setFetchError(null);
 
       try {
-        // TODO: Wire up Axios call here (fetch all users)
         const data = await adminApi.getUsers();
         setUsers(data);
-      } catch {
-        setUsers(adminApi.getMockUsers());
+      } catch (err: any) {
+        setFetchError(
+          err.response?.data?.error ||
+            "Unable to load users. Please refresh or sign in again.",
+        );
       } finally {
         setLoading(false);
       }
@@ -45,6 +50,7 @@ export const UserManagement = () => {
   }, []);
 
   const openCreateModal = () => {
+    setError(null);
     setEditingUser(null);
     setFormState(initialForm);
     setIsModalOpen(true);
@@ -65,13 +71,14 @@ export const UserManagement = () => {
     setIsModalOpen(false);
     setEditingUser(null);
     setFormState(initialForm);
+    setError(null);
   };
 
   const handleSave = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    setError(null);
 
     if (editingUser) {
-      // TODO: Wire up Axios call here (update user)
       try {
         const updated = await adminApi.updateUser(editingUser.uid, {
           full_name: formState.full_name,
@@ -82,39 +89,25 @@ export const UserManagement = () => {
         setUsers((prev) =>
           prev.map((user) => (user.uid === updated.uid ? updated : user)),
         );
-      } catch {
-        setUsers((prev) =>
-          prev.map((user) =>
-            user.uid === editingUser.uid
-              ? {
-                  ...user,
-                  full_name: formState.full_name,
-                  email: formState.email,
-                  role: formState.role,
-                }
-              : user,
-          ),
+        closeModal();
+      } catch (err: any) {
+        setError(
+          err.response?.data?.error || err.message ||
+            "Unable to update user. Please try again.",
         );
       }
     } else {
-      // TODO: Wire up Axios call here (create user)
       try {
         const created = await adminApi.createUser(formState);
         setUsers((prev) => [created, ...prev]);
-      } catch {
-        setUsers((prev) => [
-          {
-            uid: crypto.randomUUID(),
-            full_name: formState.full_name,
-            email: formState.email,
-            role: formState.role,
-          },
-          ...prev,
-        ]);
+        closeModal();
+      } catch (err: any) {
+        setError(
+          err.response?.data?.error || err.message ||
+            "Unable to create user. Please try again.",
+        );
       }
     }
-
-    closeModal();
   };
 
   const handleDelete = async (userId: string) => {
@@ -126,11 +119,14 @@ export const UserManagement = () => {
       return;
     }
 
-    // TODO: Wire up Axios call here (delete user)
     try {
       await adminApi.deleteUser(userId);
-    } finally {
       setUsers((prev) => prev.filter((user) => user.uid !== userId));
+    } catch (err: any) {
+      setError(
+        err.response?.data?.error ||
+          "Unable to delete user. Please try again.",
+      );
     }
   };
 
@@ -142,6 +138,9 @@ export const UserManagement = () => {
           <p className="text-sm text-slate-500">
             Manage chefs, customers, and administrators.
           </p>
+          {fetchError ? (
+            <p className="mt-2 text-sm text-rose-600">{fetchError}</p>
+          ) : null}
         </div>
 
         <button
@@ -233,6 +232,11 @@ export const UserManagement = () => {
         }
       >
         <form id="user-form" className="space-y-4" onSubmit={handleSave}>
+          {error ? (
+            <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+              {error}
+            </div>
+          ) : null}
           <label className="block">
             <span className="mb-2 block text-sm font-medium text-slate-700">
               Full Name

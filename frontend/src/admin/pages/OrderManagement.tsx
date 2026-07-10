@@ -5,7 +5,16 @@ import { Table } from "../components/ui/Table.tsx";
 import { adminApi } from "../services/adminApi.ts";
 import type { Order, OrderStatus } from "../types/index.ts";
 
-const statusOptions: OrderStatus[] = ["Pending", "Quoted", "Paid", "Completed"];
+const statusOptions: OrderStatus[] = [
+  "Pending",
+  "Preparing",
+  "Ready",
+  "Delivered",
+  "Cancelled",
+  "Quoted",
+  "Paid",
+  "Completed",
+];
 
 export const OrderManagement = () => {
   const [orders, setOrders] = useState<Order[]>([]);

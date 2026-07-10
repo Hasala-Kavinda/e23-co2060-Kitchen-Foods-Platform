@@ -1,23 +1,23 @@
 -- Seed data
 
 -- USERS (Customers)
-INSERT INTO users (uid, full_name, email, password_hash)
+INSERT INTO users (uid, full_name, email, password_hash, role)
 VALUES
-('u1','Alice Customer','alice@test.com','hashed_pw1'),
-('u2','Bob Customer','bob@test.com','hashed_pw2')
+('u1','Alice Customer','alice@test.com','hashed_pw1','Customer'),
+('u2','Bob Customer','bob@test.com','hashed_pw2','Customer')
 ON CONFLICT (uid) DO NOTHING;
 
 -- CHEFS
-INSERT INTO chefs (uid, full_name, email, password_hash)
+INSERT INTO chefs (uid, full_name, email, password_hash, role)
 VALUES
-('u3','Chef Nimal','nimal@test.com','hashed_pw3'),
-('u4','Chef Kamala','kamala@test.com','hashed_pw4')
+('u3','Chef Nimal','nimal@test.com','hashed_pw3','Chef'),
+('u4','Chef Kamala','kamala@test.com','hashed_pw4','Chef')
 ON CONFLICT (uid) DO NOTHING;
 
 -- ADMIN
-INSERT INTO admin (uid, full_name, email, password_hash)
+INSERT INTO admin (uid, full_name, email, password_hash, role)
 VALUES
-('u5','Admin User','admin@test.com','$2b$10$wJtK16347R4tO.Hq2M1KyeI.Zexz9TCO4w6qgM0q9T5jK1zZl2e.S')
+('u5','Admin User','admin@test.com','$2b$10$wJtK16347R4tO.Hq2M1KyeI.Zexz9TCO4w6qgM0q9T5jK1zZl2e.S','Admin')
 ON CONFLICT (uid) DO NOTHING;
 
 -- FOOD CATEGORIES

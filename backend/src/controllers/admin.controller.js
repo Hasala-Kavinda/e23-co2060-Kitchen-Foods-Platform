@@ -106,6 +106,9 @@ const createUser = async (req, res, next) => {
 
     res.status(201).json(user);
   } catch (err) {
+    if (err.code === "EMAIL_EXISTS" || err.code === "23505") {
+      return res.status(409).json({ error: "Email already exists" });
+    }
     next(err);
   }
 };
