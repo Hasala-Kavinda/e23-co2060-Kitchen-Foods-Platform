@@ -15,10 +15,10 @@ VALUES
 ON CONFLICT (uid) DO NOTHING;
 
 -- ADMIN
-INSERT INTO admin (uid, full_name, email, password_hash, role)
-VALUES
-('u5','Admin User','admin@test.com','$2b$10$wJtK16347R4tO.Hq2M1KyeI.Zexz9TCO4w6qgM0q9T5jK1zZl2e.S','Admin')
-ON CONFLICT (uid) DO NOTHING;
+--INSERT INTO admin (uid, full_name, email, password_hash, role)
+--VALUES
+--('u5','Admin User','admin@test.com','$2b$10$wJtK16347R4tO.Hq2M1KyeI.Zexz9TCO4w6qgM0q9T5jK1zZl2e.S','Admin')
+--ON CONFLICT (uid) DO NOTHING;
 
 -- FOOD CATEGORIES
 INSERT INTO food_categories (id, name, description)

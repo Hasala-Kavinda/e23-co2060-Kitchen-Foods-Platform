@@ -22,12 +22,19 @@ const testUsers = [
     password: "12345678",
     role: "Admin",
   },
-  {
-    full_name: "Kitchen Foods Admin",
-    email: "admin@kitchenfoods.lk",
-    password: "password123",
-    role: "Admin",
-  },
+  // You can add more test users for different roles
+  // {
+  //   full_name: "Test Chef",
+  //   email: "chef@test.com",
+  //   password: "12345678",
+  //   role: "Chef",
+  // },
+  // {
+  //   full_name: "Test Customer",
+  //   email: "customer@test.com",
+  //   password: "12345678",
+  //   role: "Customer",
+  // },
 ];
 
 async function insertTestUsers() {
@@ -40,16 +47,41 @@ async function insertTestUsers() {
       const passwordHash = await bcrypt.hash(user.password, 10);
       const uid = uuidv4();
 
+      // Determine which table to insert into based on role
+      let tableName;
+      let roleValue;
+
+      switch (user.role) {
+        case "Admin":
+          tableName = "admin";
+          roleValue = "Admin";
+          break;
+        case "Chef":
+          tableName = "chefs";
+          roleValue = "Chef";
+          break;
+        case "Customer":
+          tableName = "users";
+          roleValue = "Customer";
+          break;
+        default:
+          console.error(`Unknown role: ${user.role}`);
+          continue;
+      }
+
       const result = await client.query(
-        `INSERT INTO users (uid, full_name, email, password_hash, role)
+        `INSERT INTO ${tableName} (uid, full_name, email, password_hash, role)
          VALUES ($1, $2, $3, $4, $5)
          ON CONFLICT (email) DO NOTHING
          RETURNING uid, full_name, email, role`,
-        [uid, user.full_name, user.email, passwordHash, user.role],
+        [uid, user.full_name, user.email, passwordHash, roleValue],
       );
 
       if (result.rows.length > 0) {
-        inserted.push(result.rows[0]);
+        inserted.push({
+          ...result.rows[0],
+          table: tableName,
+        });
       }
     }
 
